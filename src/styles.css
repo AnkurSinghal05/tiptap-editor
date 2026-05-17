@@ -1,0 +1,303 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 60vh;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.panel-header {
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel-header--tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tab--active {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+.render-surface {
+  background: #fff;
+}
+
+.json-surface {
+  background: #0f172a;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  min-height: 60vh;
+}
+
+.app-header {
+  margin-bottom: 16px;
+}
+
+.app-header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.app-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.editor-surface .ProseMirror {
+  outline: none;
+}
+
+.editor-surface .ProseMirror > * + * {
+  margin-top: 0.5em;
+}
+
+/* Section + clause visual cues — scoped to the editor surface only so the
+   Render panel renders a clean document without the editing chrome. */
+.editor-surface .section-node {
+  position: relative;
+  padding: 16px 18px 16px 40px;
+  margin: 16px 0;
+  border-left: 3px solid #4f46e5;
+  background: #fafbff;
+  border-radius: 0 6px 6px 0;
+}
+
+.editor-surface .section-drag-handle {
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.editor-surface .section-drag-handle:hover {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.editor-surface .section-drag-handle:active {
+  cursor: grabbing;
+}
+
+.editor-surface .section-content {
+  display: contents;
+}
+
+.editor-surface .section-node::before {
+  content: "section · " attr(data-section-id);
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.editor-surface .clause-node {
+  position: relative;
+  padding: 12px 36px 12px 36px;
+  margin: 12px 0;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.editor-surface .clause-drag-handle {
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #cbd5e1;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.editor-surface .clause-drag-handle:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.editor-surface .clause-drag-handle:active {
+  cursor: grabbing;
+}
+
+.editor-surface .node-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.editor-surface .node-delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.editor-surface .clause-node::before {
+  content: "clause · " attr(data-clause-id);
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.editor-surface .clause-node[data-tags]:not([data-tags="[]"])::after {
+  content: "tags: " attr(data-tags);
+  display: block;
+  font-size: 10px;
+  color: #4f46e5;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Tiptap content styling */
+.ProseMirror h1 { font-size: 28px; margin: 0; }
+.ProseMirror h2 { font-size: 22px; margin: 0; }
+.ProseMirror h3 { font-size: 18px; margin: 0; }
+.ProseMirror p { margin: 0; }
+.ProseMirror ul, .ProseMirror ol { padding-left: 22px; margin: 0; }
+.ProseMirror blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 12px;
+  color: #475569;
+  margin: 0;
+}
+.ProseMirror code {
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.ProseMirror pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  overflow-x: auto;
+}
+.ProseMirror pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid #cbd5e1;
+  margin: 12px 0;
+}

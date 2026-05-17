@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/tagsdialog.tsx","./src/editor/editor.tsx","./src/editor/toolbar.tsx","./src/editor/initialcontent.ts","./src/editor/extensions/clause.ts","./src/editor/extensions/customdocument.ts","./src/editor/extensions/customheading.ts","./src/editor/extensions/section.ts","./src/editor/utils/ids.ts"],"version":"5.9.3"}
