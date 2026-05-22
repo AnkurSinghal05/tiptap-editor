@@ -91,6 +91,13 @@ body {
   background: #fff;
 }
 
+.json-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .json-surface {
   background: #0f172a;
   color: #94a3b8;
@@ -100,6 +107,19 @@ body {
   outline: none;
   resize: none;
   min-height: 60vh;
+}
+
+.json-status {
+  padding: 8px 20px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #0f172a;
+  color: #4ade80;
+  border-top: 1px solid #1e293b;
+}
+
+.json-status--error {
+  color: #f87171;
 }
 
 .app-header {

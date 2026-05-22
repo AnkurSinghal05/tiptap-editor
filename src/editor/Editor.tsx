@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 import { Image } from "@tiptap/extension-image";
@@ -20,8 +20,14 @@ export const Editor = () => {
   const [showTagsDialog, setShowTagsDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("render");
   const [jsonText, setJsonText] = useState(JSON.stringify(initialContent, null, 2));
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const [html, setHtml] = useState("");
   const pendingInsertPosRef = useRef<number | null>(null);
+
+  // True while the editor is being updated from a JSON edit. Prevents the
+  // editor's onUpdate from overwriting (reformatting) the JSON the user is
+  // actively typing.
+  const isApplyingJsonRef = useRef(false);
 
   // Ref-based callback keeps the extension's option stable while letting
   // React state setters be invoked through the closure below.
@@ -54,7 +60,11 @@ export const Editor = () => {
     },
     onUpdate: ({ editor }) => {
       setHtml(editor.getHTML());
-      setJsonText(JSON.stringify(editor.getJSON(), null, 2));
+      // When the change originated from a JSON edit, leave the textarea as the
+      // user typed it; only editor-originated changes resync the JSON text.
+      if (!isApplyingJsonRef.current) {
+        setJsonText(JSON.stringify(editor.getJSON(), null, 2));
+      }
     },
   });
 
@@ -135,11 +145,26 @@ export const Editor = () => {
 
   const handleJsonChange = (value: string) => {
     setJsonText(value);
+
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(value);
-      editor.commands.setContent(parsed);
-    } catch {
-      // ignore invalid JSON while typing
+      parsed = JSON.parse(value);
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : "Invalid JSON");
+      return;
+    }
+
+    isApplyingJsonRef.current = true;
+    try {
+      // emitUpdate: true so the Render preview (html) also reflects JSON edits.
+      editor.commands.setContent(parsed as JSONContent, true);
+      setJsonError(null);
+    } catch (err) {
+      setJsonError(
+        err instanceof Error ? err.message : "JSON does not match the editor schema",
+      );
+    } finally {
+      isApplyingJsonRef.current = false;
     }
   };
 
@@ -182,12 +207,17 @@ export const Editor = () => {
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <textarea
-              className="panel-body json-surface"
-              value={jsonText}
-              spellCheck={false}
-              onChange={(e) => handleJsonChange(e.target.value)}
-            />
+            <div className="json-pane">
+              <textarea
+                className="panel-body json-surface"
+                value={jsonText}
+                spellCheck={false}
+                onChange={(e) => handleJsonChange(e.target.value)}
+              />
+              <div className={jsonError ? "json-status json-status--error" : "json-status"}>
+                {jsonError ? `⚠ ${jsonError}` : "✓ Synced with editor"}
+              </div>
+            </div>
           )}
         </div>
       </div>
