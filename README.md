@@ -7,7 +7,7 @@ Document
  └── Section (id)                        id = entity id from the backend (e.g. golf-booking)
       ├── Heading (H1)
       ├── Clause*
-      └── SubSection (type, id, name)*   type = facility | partner | service | vendor; id = real entity id
+      └── SubSection (type, id, name)*   type = facility | partner | service; id = real entity id
            ├── Heading (H2)              (shows the subsection name)
            ├── Clause*
            └── Workflow (id)*            id = fixed list (see taxonomy.ts)
@@ -18,7 +18,7 @@ Document
 ## How it works
 
 - **Loading:** pick a document type and an entity, then optionally a subsection and a workflow, and click **Load**. Containers above the loaded scope are shown read-only, for context. Choose **+ New entity…** to start a document for an entity that doesn't have one yet.
-- **Saving:** **Save** compares the editor with what was loaded. New clauses go first: one new clause is sent with a single add (`POST /knowledge-base/clauses`), several with `append` (500 per request, all or nothing). Then it sends one PATCH per edited clause and one DELETE per deleted clause. When everything succeeds the scope is reloaded from the backend. When something fails, the rest stays saved and the failed clauses are highlighted in red (hover for the reason). The **Pending requests** tab shows exactly what Save would send.
+- **Saving:** **Save** compares the editor with what was loaded. New clauses go first: one new clause is sent with a single add (`POST /knowledge-base/clauses`), several with `append` (500 per request, all or nothing). Then it sends one PATCH per edited clause, and the deleted clauses in batch deletes (`POST /knowledge-base/clauses/delete`, up to 50 per request). When everything succeeds the scope is reloaded from the backend. When something fails, the rest stays saved and the failed clauses are highlighted in red (hover for the reason). The **Pending requests** tab shows exactly what Save would send.
 - **Clause ids:** a new clause gets a `tmp-…` id until the backend assigns its `cl-…` id. Unsaved clauses are outlined in amber.
 - **What the backend doesn't support, so the editor doesn't either:**
   - Clauses can't be reordered. New clauses always go at the end of their container, where the backend puts them.

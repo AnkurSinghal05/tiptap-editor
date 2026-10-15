@@ -120,9 +120,9 @@ export const withApiLog = (api: KbApi, log: ReturnType<typeof createApiLog>, lab
       const route = kbRoutes.updateClause(clauseId, body);
       return record(route, () => api.updateClause(clauseId, body), ok(route));
     },
-    deleteClause(clauseId, type, entityId) {
-      const route = kbRoutes.deleteClause(clauseId, type, entityId);
-      return record(route, () => api.deleteClause(clauseId, type, entityId), ok(route));
+    deleteClauses(body) {
+      const route = kbRoutes.deleteClauses(body);
+      return record(route, () => api.deleteClauses(body), ok(route));
     },
   };
 };

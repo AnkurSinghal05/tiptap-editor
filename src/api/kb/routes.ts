@@ -1,10 +1,10 @@
-import type { AddClauseBody, ClauseNodeJSON, DocType, KbDocument, ListDocumentsParams } from "./types";
+import type { AddClauseBody, ClauseNodeJSON, DeleteClausesBody, DocType, KbDocument, ListDocumentsParams } from "./types";
 
 // Method, path and body of every Knowledge Base API call. Shared by the HTTP
 // client and the API log, so the log shows exactly what would be sent.
 
 export interface KbRoute {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH";
   // Relative to the base URL (which includes /api/v1), with the query string.
   path: string;
   body?: unknown;
@@ -53,9 +53,11 @@ export const kbRoutes = {
     body,
     successStatus: 200,
   }),
-  deleteClause: (clauseId: string, type: DocType, entityId: string): KbRoute => ({
-    method: "DELETE",
-    path: `${clausePath(clauseId)}${query({ type, entity_id: entityId })}`,
+  // A POST with a body, not a DELETE.
+  deleteClauses: (body: DeleteClausesBody): KbRoute => ({
+    method: "POST",
+    path: "/knowledge-base/clauses/delete",
+    body,
     successStatus: 200,
   }),
 };

@@ -15,3 +15,6 @@ export const PROJECT_CODE = "THRIWE_APP";
 
 // Server limit on clauses per create/append request.
 export const MAX_CLAUSES_PER_REQUEST = 500;
+
+// Server limit on clause ids per batch delete.
+export const MAX_CLAUSES_PER_DELETE = 50;

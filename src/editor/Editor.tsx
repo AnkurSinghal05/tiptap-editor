@@ -30,6 +30,7 @@ import {
   containersWithSavedClauses,
   findEmptyNewContainers,
   planAddRequests,
+  planDeleteRequests,
   type Baseline,
 } from "./sync/changes";
 import { createDocument, saveChanges } from "./sync/saveChanges";
@@ -40,7 +41,7 @@ import { SubSectionDialog, type NewSubSection } from "../components/SubSectionDi
 import { ScopeBar } from "../components/ScopeBar";
 import { apiLog, kbApi, usingMockApi } from "../api/kb";
 import { ApiLogPanel } from "../components/ApiLogPanel";
-import { MAX_CLAUSES_PER_REQUEST, PROJECT_CODE } from "../api/kb/config";
+import { MAX_CLAUSES_PER_DELETE, MAX_CLAUSES_PER_REQUEST, PROJECT_CODE } from "../api/kb/config";
 import type { DocType } from "../api/kb/types";
 
 type Tab = "render" | "json" | "log";
@@ -130,7 +131,12 @@ export const Editor = () => {
             id: u.id,
             body: { type: current.docType, entity_id: current.entityId, clause: clauseJSON(u.node) },
           })),
-          "DELETE /knowledge-base/clauses/{id}": changes.deleted,
+          "POST /knowledge-base/clauses/delete": planDeleteRequests(
+            current.docType,
+            current.entityId,
+            changes.deleted,
+            MAX_CLAUSES_PER_DELETE,
+          ),
         },
         null,
         2,

@@ -1,12 +1,12 @@
 import type { JSONContent } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import type { AddClauseBody, ClauseNodeJSON, DocType, FieldError, KbDocument } from "../../api/kb/types";
+import type { AddClauseBody, ClauseNodeJSON, DeleteClausesBody, DocType, FieldError, KbDocument } from "../../api/kb/types";
 import { isTempClauseId } from "../utils/ids";
 import { forEachContainer, titleOf } from "./containerKeys";
 
 // Turns the difference between the loaded document and the edited one into
-// Knowledge Base API calls: one append for new clauses, then a PATCH per
-// edited clause and a DELETE per removed clause.
+// Knowledge Base API calls: a single add or append for new clauses, a PATCH
+// per edited clause, and batch deletes for removed clauses.
 
 export interface ClauseContext {
   // Key of the container the clause sits in (see containerKeys.ts).
@@ -223,6 +223,20 @@ export const planAddRequests = (
     return [{ kind: "single", body: addClauseBody(docType, entityId, added[0]), clauses: [added[0]] }];
   }
   return buildAppendRequests(docType, entityId, added, maxClauses).map((r) => ({ kind: "append", ...r }));
+};
+
+// Batch deletes (POST /knowledge-base/clauses/delete), at most `maxIds` each.
+export const planDeleteRequests = (
+  docType: DocType,
+  entityId: string,
+  ids: string[],
+  maxIds: number,
+): DeleteClausesBody[] => {
+  const requests: DeleteClausesBody[] = [];
+  for (let start = 0; start < ids.length; start += maxIds) {
+    requests.push({ type: docType, entity_id: entityId, clause_ids: ids.slice(start, start + maxIds) });
+  }
+  return requests;
 };
 
 // Maps validation errors to the clauses they refer to (by longest path prefix).

@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import { MAX_CLAUSES_PER_REQUEST } from "./config";
+import { MAX_CLAUSES_PER_DELETE, MAX_CLAUSES_PER_REQUEST } from "./config";
 import { KbApiError, type KbApi } from "./client";
 import { MOCK_SEED } from "./mockSeed";
 import { DOC_TYPES, type AddClauseBody, type DocType, type FieldError, type KbDocument } from "./types";
@@ -47,6 +47,10 @@ const normalize = (node: JSONContent): JSONContent => {
   return { ...node, content: [...heading, ...clauses, ...children] };
 };
 
+// The API accepts only these subSection types (not `vendor`).
+const SUBSECTION_TYPES = ["partner", "facility", "service"];
+const SUBSECTION_TYPE_ERROR = "A subSection type must be partner, facility or service";
+
 const cleanClause = (c: JSONContent, id: string): JSONContent => ({
   type: "clause",
   attrs: { id, tags: Array.isArray(c.attrs?.tags) ? c.attrs!.tags : [] },
@@ -89,6 +93,7 @@ const validateDocument = (body: KbDocument, { requireHeading }: { requireHeading
     if (child.type !== "subSection") return;
     const { type, id, name } = child.attrs ?? {};
     if (!type) errors.push({ field: `${path}.attrs.type`, message: "is required" });
+    else if (!SUBSECTION_TYPES.includes(type)) errors.push({ field: `${path}.attrs.type`, message: SUBSECTION_TYPE_ERROR });
     if (!id) errors.push({ field: `${path}.attrs.id`, message: "is required" });
     else if (String(id).length > 100) errors.push({ field: `${path}.attrs.id`, message: "must be at most 100 characters" });
     if (!String(name ?? "").trim() && !textOf(kids(child).find((c) => c.type === "heading")).trim()) {
@@ -127,6 +132,7 @@ const validateAddClause = (body: AddClauseBody) => {
   if (body.workflow && !body.sub_section) errors.push({ field: "sub_section", message: "is required when workflow is given" });
   if (body.sub_section) {
     if (!body.sub_section.type) errors.push({ field: "sub_section.type", message: "is required" });
+    else if (!SUBSECTION_TYPES.includes(body.sub_section.type)) errors.push({ field: "sub_section.type", message: SUBSECTION_TYPE_ERROR });
     if (!body.sub_section.id) errors.push({ field: "sub_section.id", message: "is required" });
     else if (body.sub_section.id.length > 100) errors.push({ field: "sub_section.id", message: "must be at most 100 characters" });
   }
@@ -366,17 +372,36 @@ export const createMockKbApi = (options: MockKbOptions = {}): KbApi => {
       return { clause_ids: [clauseId] };
     },
 
-    async deleteClause(clauseId, type, entityId) {
+    async deleteClauses(body) {
       await delay();
-      fail("delete", clauseId);
-      const section = clone(getSection(type, entityId));
-      const found = locate(section, clauseId);
-      if (!found) throw new KbApiError(404, "Clause not found");
-      found.parent.content!.splice(found.index, 1);
-      const stored = normalize(section);
-      store.set(`${type}:${entityId}`, stored);
-      // Assumed to match the other writes; the collection only has the old example.
-      return { clause_ids: [clauseId] };
+      const ids = body.clause_ids;
+      const errors: FieldError[] = [];
+      if (!Array.isArray(ids) || ids.length === 0) errors.push({ field: "clause_ids", message: "must hold at least 1 id" });
+      else if (ids.length > MAX_CLAUSES_PER_DELETE) {
+        errors.push({ field: "clause_ids", message: `must hold at most ${MAX_CLAUSES_PER_DELETE} ids` });
+      } else {
+        ids.forEach((id, i) => {
+          if (typeof id !== "string" || !id) errors.push({ field: `clause_ids[${i}]`, message: "must be a non-empty string" });
+          else if (ids.indexOf(id) !== i) errors.push({ field: `clause_ids[${i}]`, message: "is a duplicate" });
+        });
+      }
+      if (errors.length) throw new KbApiError(400, "validation_error", errors);
+      ids.forEach((id) => fail("delete", id));
+
+      // All or nothing: every id must exist before anything is deleted.
+      const section = clone(getSection(body.type, body.entity_id));
+      const missing = ids
+        .map((id, i) => ({ id, i }))
+        .filter(({ id }) => !locate(section, id))
+        .map(({ id, i }) => ({ field: `clause_ids[${i}]`, message: `clause ${id} not found` }));
+      if (missing.length) throw new KbApiError(404, "Clause not found", missing);
+
+      for (const id of ids) {
+        const found = locate(section, id)!;
+        found.parent.content!.splice(found.index, 1);
+      }
+      store.set(`${body.type}:${body.entity_id}`, normalize(section));
+      return { clause_ids: [...ids] };
     },
   };
 };

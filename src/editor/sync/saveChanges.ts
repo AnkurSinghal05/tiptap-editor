@@ -1,7 +1,7 @@
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { KbApiError, type KbApi } from "../../api/kb/client";
-import { MAX_CLAUSES_PER_REQUEST } from "../../api/kb/config";
-import type { DocType } from "../../api/kb/types";
+import { MAX_CLAUSES_PER_DELETE, MAX_CLAUSES_PER_REQUEST } from "../../api/kb/config";
+import type { DeleteClausesBody, DocType } from "../../api/kb/types";
 import {
   clauseJSON,
   clausePathsInDoc,
@@ -9,6 +9,7 @@ import {
   fingerprint,
   mapFieldErrors,
   planAddRequests,
+  planDeleteRequests,
   type Baseline,
 } from "./changes";
 
@@ -38,8 +39,8 @@ const addError = (map: Map<string, string[]>, id: string, messages: string[]) =>
   map.set(id, [...(map.get(id) ?? []), ...messages]);
 
 // Saves the edits to an existing document: new clauses first (a single add
-// for one, append for several), then one PATCH per edited clause and one
-// DELETE per removed clause. Keeps
+// for one, append for several), then one PATCH per edited clause, then the
+// removed clauses in batch deletes of up to 50. Keeps
 // going after a failure (except an append without a response) and reports
 // what failed.
 export const saveChanges = async (
@@ -103,24 +104,51 @@ export const saveChanges = async (
     }
   }
 
-  for (const id of changes.deleted) {
-    // A moved clause is only deleted once its copy in the new place is saved.
-    if (changes.moved.has(id) && !outcome.idSwaps.has(id)) continue;
-    try {
-      await api.deleteClause(id, docType, entityId);
-      baseline.clauses.delete(id);
-    } catch (err) {
-      // Already gone on the backend: nothing left to do.
-      if (err instanceof KbApiError && err.status === 404) {
-        baseline.clauses.delete(id);
-        continue;
-      }
-      outcome.failed++;
-      outcome.general.push(`Couldn't delete clause ${id}: ${describe(err).join("; ")}`);
+  // A moved clause is only deleted once its copy in the new place is saved.
+  const toDelete = changes.deleted.filter((id) => !changes.moved.has(id) || outcome.idSwaps.has(id));
+  for (const req of planDeleteRequests(docType, entityId, toDelete, MAX_CLAUSES_PER_DELETE)) {
+    const deleted = await deleteBatch(api, req);
+    for (const id of deleted.done) baseline.clauses.delete(id);
+    if (deleted.error) {
+      outcome.failed += req.clause_ids.length - deleted.done.length;
+      outcome.general.push(deleted.error);
     }
   }
 
   return outcome;
+};
+
+// One batch delete. It's all or nothing, and a 404 lists the ids that
+// weren't found: those are already gone, so the rest is retried once.
+const deleteBatch = async (
+  api: KbApi,
+  req: DeleteClausesBody,
+): Promise<{ done: string[]; error?: string }> => {
+  const describeFailure = (err: unknown, count: number) =>
+    `Couldn't delete ${count} clause${count > 1 ? "s" : ""}: ${describe(err).join("; ")}`;
+  try {
+    await api.deleteClauses(req);
+    return { done: req.clause_ids };
+  } catch (err) {
+    const missing = new Set(
+      err instanceof KbApiError && err.status === 404
+        ? err.fieldErrors
+            .map((e) => /^clause_ids\[(\d+)\]$/.exec(e.field))
+            .filter((m): m is RegExpExecArray => !!m)
+            .map((m) => req.clause_ids[Number(m[1])])
+        : [],
+    );
+    if (missing.size === 0) return { done: [], error: describeFailure(err, req.clause_ids.length) };
+
+    const rest = req.clause_ids.filter((id) => !missing.has(id));
+    if (rest.length === 0) return { done: req.clause_ids };
+    try {
+      await api.deleteClauses({ ...req, clause_ids: rest });
+      return { done: req.clause_ids };
+    } catch (retryErr) {
+      return { done: [...missing], error: describeFailure(retryErr, rest.length) };
+    }
+  }
 };
 
 export interface CreateOutcome {

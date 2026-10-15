@@ -3,6 +3,7 @@ import type {
   AddClauseBody,
   ClauseIdsResult,
   ClauseNodeJSON,
+  DeleteClausesBody,
   DocType,
   FieldError,
   KbDocument,
@@ -32,7 +33,9 @@ export interface KbApi {
     clauseId: string,
     body: { type: DocType; entity_id: string; clause: ClauseNodeJSON },
   ): Promise<ClauseIdsResult>;
-  deleteClause(clauseId: string, type: DocType, entityId: string): Promise<ClauseIdsResult>;
+  // 1 to 50 clauses of one entity, all or nothing. A 404 lists every
+  // missing id as `clause_ids[<index>]`.
+  deleteClauses(body: DeleteClausesBody): Promise<ClauseIdsResult>;
 }
 
 export interface Envelope<T> {
@@ -42,15 +45,6 @@ export interface Envelope<T> {
   pagination?: Pagination;
   errors?: FieldError[];
 }
-
-// Clause writes return `{ clause_ids: [...] }` (backend change of Oct 15,
-// 2026). Earlier responses had a single `clause_id`; that's still accepted
-// until every endpoint is confirmed on the new shape.
-const toClauseIds = (data: { clause_ids?: string[]; clause_id?: string } | null | undefined): ClauseIdsResult => ({
-  clause_ids: data?.clause_ids ?? (data?.clause_id ? [data.clause_id] : []),
-});
-
-type ClauseWriteData = { clause_ids?: string[]; clause_id?: string };
 
 export const createHttpKbApi = (opts: {
   baseUrl: string;
@@ -97,11 +91,10 @@ export const createHttpKbApi = (opts: {
       };
     },
     createDocument: async (document) => (await request<KbDocument>(kbRoutes.createDocument(document))).data,
-    addClause: async (body) => toClauseIds((await request<ClauseWriteData>(kbRoutes.addClause(body))).data),
-    append: async (document) => toClauseIds((await request<ClauseWriteData>(kbRoutes.append(document))).data),
+    addClause: async (body) => (await request<ClauseIdsResult>(kbRoutes.addClause(body))).data,
+    append: async (document) => (await request<ClauseIdsResult>(kbRoutes.append(document))).data,
     updateClause: async (clauseId, body) =>
-      toClauseIds((await request<ClauseWriteData>(kbRoutes.updateClause(clauseId, body))).data),
-    deleteClause: async (clauseId, type, entityId) =>
-      toClauseIds((await request<ClauseWriteData>(kbRoutes.deleteClause(clauseId, type, entityId))).data),
+      (await request<ClauseIdsResult>(kbRoutes.updateClause(clauseId, body))).data,
+    deleteClauses: async (body) => (await request<ClauseIdsResult>(kbRoutes.deleteClauses(body))).data,
   };
 };

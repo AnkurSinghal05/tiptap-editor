@@ -52,6 +52,14 @@ export interface AddClauseBody {
   clause: ClauseNodeJSON;
 }
 
+// Body of a batch delete (POST /knowledge-base/clauses/delete): 1 to 50
+// clauses of one entity, all or nothing.
+export interface DeleteClausesBody {
+  type: DocType;
+  entity_id: string;
+  clause_ids: string[];
+}
+
 // What every clause write returns (add, append, update, delete): the ids of
 // the clauses it touched, in request order. No document: reload with GET.
 export interface ClauseIdsResult {

@@ -2,7 +2,9 @@ import type { JSONContent } from "@tiptap/core";
 import type { KbDocument } from "./types";
 
 // Sample data for the mock backend, taken from the documents in the backend
-// team's Postman collection (recorded GET / create responses).
+// team's Postman collection (recorded GET / create responses). Vendor
+// subSections from those recordings are left out: the API no longer accepts
+// that type (handoff of Oct 15, 2026).
 
 const heading = (level: 1 | 2 | 3, text: string): JSONContent => ({
   type: "heading",
@@ -94,7 +96,6 @@ export const MOCK_SEED: KbDocument[] = [
       "Jumeirah Beach Resort",
       wf("booking", "Booking", clause("cl-68ba78f4-91e5-4175-a4c0-566a37bcd6cb", ["lead-time"], p("Cabanas must be booked at least 24 hours in advance."))),
     ),
-    sub("vendor", "VND-0031", "Watersports Desk", clause("cl-a606fc43-112c-44d7-ba01-a5a7cbb1f88d", ["safety"], p("Life jackets are mandatory for all watersports activities."))),
   ),
   doc(
     "golf-booking",
@@ -122,6 +123,5 @@ export const MOCK_SEED: KbDocument[] = [
       "Bengaluru Golf Club",
       wf("booking", "Booking", clause("cl-66cb2645-96fb-43c7-aff2-86aa0b22042d", ["lead-time"], p("Tee times must be booked at least 48 hours in advance."))),
     ),
-    sub("vendor", "V-1", "Caddie Services", clause("cl-f49dd845-c2c9-4bc2-bb01-cc352b1a858f", [], p("Caddies are booked through the front desk."))),
   ),
 ];

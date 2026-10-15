@@ -7,12 +7,13 @@ export interface TaxonomyOption<T extends string = string> {
   label: string;
 }
 
-// Subsection types. A subsection is identified by (type, id) within a vertical.
+// Subsection types: discovery catalog items. A subsection is identified by
+// (type, id) within an entity. The API accepts only these three (`vendor` was
+// dropped in the handoff of Oct 15, 2026).
 export const SUBSECTION_TYPES = [
   { value: "facility", label: "Facility" },
   { value: "partner", label: "Partner" },
   { value: "service", label: "Service" },
-  { value: "vendor", label: "Vendor" },
 ] as const;
 
 export type SubSectionType = (typeof SUBSECTION_TYPES)[number]["value"];
