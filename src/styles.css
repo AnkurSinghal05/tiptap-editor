@@ -102,6 +102,238 @@ body {
   min-height: 60vh;
 }
 
+/* Scope filters (what to load) */
+.scope-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.scope-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.scope-bar select,
+.scope-bar input {
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.scope-bar__load,
+.scope-save {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scope-bar__load:disabled,
+.scope-save:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.scope-bar__error {
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+/* Breadcrumb + save status above the editor */
+.scope-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+}
+
+.scope-breadcrumb {
+  flex: 1;
+  color: #0f172a;
+}
+
+.scope-mock {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.scope-status {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.scope-status--dirty {
+  color: #b45309;
+}
+
+.scope-save {
+  padding: 5px 14px;
+}
+
+.scope-alert {
+  padding: 10px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.scope-notice {
+  padding: 10px 16px;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 13px;
+}
+
+.scope-alert ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.scope-alert button {
+  margin-top: 8px;
+  padding: 4px 12px;
+  border: 1px solid #b91c1c;
+  border-radius: 6px;
+  background: #fff;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+/* API log (mock backend calls) */
+.api-log {
+  padding: 0;
+  font-size: 12px;
+}
+
+.api-log__toolbar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.api-log__toolbar span {
+  flex: 1;
+}
+
+.api-log__toolbar button {
+  padding: 3px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.api-log__toolbar button:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.api-log__empty {
+  padding: 12px;
+  color: #94a3b8;
+}
+
+.api-log__entry {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.api-log__entry summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.api-log__entry summary:hover {
+  background: #f8fafc;
+}
+
+.api-log__method {
+  min-width: 52px;
+  font-weight: 700;
+}
+
+.api-log__method--get { color: #0369a1; }
+.api-log__method--post { color: #15803d; }
+.api-log__method--patch { color: #b45309; }
+.api-log__method--delete { color: #b91c1c; }
+
+.api-log__path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0f172a;
+}
+
+.api-log__status {
+  font-weight: 700;
+}
+
+.api-log__status--ok { color: #15803d; }
+.api-log__status--error { color: #b91c1c; }
+.api-log__status--none { color: #64748b; }
+
+.api-log__meta {
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.api-log__body {
+  padding: 4px 12px 12px;
+  background: #f8fafc;
+}
+
+.api-log__body h4 {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.api-log__body pre {
+  margin: 0;
+  padding: 8px;
+  max-height: 320px;
+  overflow: auto;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
 .app-header {
   margin-bottom: 16px;
 }
@@ -125,54 +357,41 @@ body {
   margin-top: 0.5em;
 }
 
-/* Section + clause visual cues — scoped to the editor surface only so the
+/* Container + clause visual cues — scoped to the editor surface only so the
    Render panel renders a clean document without the editing chrome. */
-.editor-surface .section-node {
+.editor-surface .container-node {
+  --accent: #4f46e5;
+  --accent-soft: #e0e7ff;
   position: relative;
-  padding: 16px 18px 16px 40px;
+  padding: 16px 36px 16px 18px;
   margin: 16px 0;
-  border-left: 3px solid #4f46e5;
+  border-left: 3px solid var(--accent);
   background: #fafbff;
   border-radius: 0 6px 6px 0;
 }
 
-.editor-surface .section-drag-handle {
-  position: absolute;
-  left: 8px;
-  top: 14px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: #94a3b8;
-  font-size: 18px;
-  line-height: 1;
-  user-select: none;
-  border-radius: 4px;
-  transition: background 0.1s, color 0.1s;
+.editor-surface .subsection-node {
+  --accent: #0d9488;
+  --accent-soft: #ccfbf1;
+  background: #f7fdfc;
 }
 
-.editor-surface .section-drag-handle:hover {
-  background: #e0e7ff;
-  color: #4f46e5;
+.editor-surface .workflow-node {
+  --accent: #d97706;
+  --accent-soft: #fef3c7;
+  background: #fffcf5;
 }
 
-.editor-surface .section-drag-handle:active {
-  cursor: grabbing;
-}
-
-.editor-surface .section-content {
+.editor-surface .container-content {
   display: contents;
 }
 
-.editor-surface .section-node::before {
-  content: "section · " attr(data-section-id);
+.editor-surface .container-node::before {
+  content: attr(data-label);
   position: absolute;
   top: -10px;
   left: 12px;
-  background: #4f46e5;
+  background: var(--accent);
   color: #fff;
   font-size: 10px;
   font-weight: 600;
@@ -184,38 +403,11 @@ body {
 
 .editor-surface .clause-node {
   position: relative;
-  padding: 12px 36px 12px 36px;
+  padding: 12px 36px 12px 14px;
   margin: 12px 0;
   border: 1px dashed #cbd5e1;
   border-radius: 6px;
   background: #fff;
-}
-
-.editor-surface .clause-drag-handle {
-  position: absolute;
-  left: 6px;
-  top: 10px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: #cbd5e1;
-  font-size: 16px;
-  line-height: 1;
-  user-select: none;
-  border-radius: 4px;
-  transition: background 0.1s, color 0.1s;
-}
-
-.editor-surface .clause-drag-handle:hover {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.editor-surface .clause-drag-handle:active {
-  cursor: grabbing;
 }
 
 .editor-surface .node-delete {
@@ -263,6 +455,42 @@ body {
   padding-top: 6px;
   border-top: 1px solid #e2e8f0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Scope lock: ancestors of the loaded scope are context only. */
+.editor-surface .scope-ancestor > .node-delete,
+.editor-surface .scope-root > .node-delete {
+  display: none;
+}
+
+.editor-surface .scope-ancestor {
+  background: transparent;
+}
+
+.editor-surface .scope-locked-title {
+  color: #94a3b8;
+  cursor: default;
+}
+
+/* Titles of saved containers can't be renamed */
+.editor-surface .title-locked {
+  cursor: default;
+}
+
+/* Clauses whose last save failed (reason in the tooltip) */
+.editor-surface .clause-node.clause-node--error {
+  border: 1px solid #dc2626;
+  background: #fef2f2;
+}
+
+/* Clauses not yet saved (temp id) */
+.editor-surface .clause-node--temp {
+  border-color: #f59e0b;
+}
+
+.editor-surface .clause-node--temp::before {
+  content: "clause · new (unsaved)";
+  color: #b45309;
 }
 
 /* Tiptap content styling */

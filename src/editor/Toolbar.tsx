@@ -14,10 +14,11 @@ import {
   MdFormatClear,
   MdClearAll,
   MdKeyboardReturn,
-  MdAddBox,
   MdNoteAdd,
+  MdCreateNewFolder,
+  MdAltRoute,
 } from "react-icons/md";
-import { RiH1, RiH2, RiH3, RiCodeBoxLine } from "react-icons/ri";
+import { RiCodeBoxLine } from "react-icons/ri";
 
 type BtnProps = {
   onClick: () => void;
@@ -67,11 +68,24 @@ const Divider = () => (
 
 interface ToolbarProps {
   editor: Editor;
-  onAddSection: () => void;
+  onAddSubSection: () => void;
+  onAddWorkflow: () => void;
   onAddClause: () => void;
+  // False when the loaded scope is narrower than the level being added.
+  canAddSubSection: boolean;
+  canAddWorkflow: boolean;
 }
 
-export const Toolbar = ({ editor, onAddSection, onAddClause }: ToolbarProps) => {
+export const Toolbar = ({
+  editor,
+  onAddSubSection,
+  onAddWorkflow,
+  onAddClause,
+  canAddSubSection,
+  canAddWorkflow,
+}: ToolbarProps) => {
+  const inTitle = editor.isActive("heading");
+
   return (
     <div
       style={{
@@ -96,35 +110,22 @@ export const Toolbar = ({ editor, onAddSection, onAddClause }: ToolbarProps) => 
 
       <Divider />
 
-      <Btn onClick={onAddSection} title="Add section (prompts for id)">
-        <MdAddBox />
+      <Btn
+        onClick={onAddSubSection}
+        title="Add subsection (type, id and name)"
+        disabled={!canAddSubSection}
+      >
+        <MdCreateNewFolder />
+      </Btn>
+      <Btn
+        onClick={onAddWorkflow}
+        title="Add workflow to current subsection"
+        disabled={!canAddWorkflow}
+      >
+        <MdAltRoute />
       </Btn>
       <Btn onClick={onAddClause} title="Add clause (prompts for tags)">
         <MdNoteAdd />
-      </Btn>
-
-      <Divider />
-
-      <Btn
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        active={editor.isActive("heading", { level: 1 })}
-        title="Heading 1"
-      >
-        <RiH1 />
-      </Btn>
-      <Btn
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editor.isActive("heading", { level: 2 })}
-        title="Heading 2"
-      >
-        <RiH2 />
-      </Btn>
-      <Btn
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        active={editor.isActive("heading", { level: 3 })}
-        title="Heading 3"
-      >
-        <RiH3 />
       </Btn>
 
       <Divider />
@@ -219,6 +220,7 @@ export const Toolbar = ({ editor, onAddSection, onAddClause }: ToolbarProps) => 
       <Btn
         onClick={() => editor.chain().focus().clearNodes().run()}
         title="Clear nodes"
+        disabled={inTitle}
       >
         <MdClearAll />
       </Btn>
