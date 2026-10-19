@@ -39,9 +39,16 @@ import { TagsDialog } from "../components/TagsDialog";
 import { OptionPickerDialog } from "../components/OptionPickerDialog";
 import { SubSectionDialog, type NewSubSection } from "../components/SubSectionDialog";
 import { ScopeBar } from "../components/ScopeBar";
-import { apiLog, kbApi, usingMockApi } from "../api/kb";
+import { apiLog, apiMode, kbApi } from "../api/kb";
 import { ApiLogPanel } from "../components/ApiLogPanel";
-import { MAX_CLAUSES_PER_DELETE, MAX_CLAUSES_PER_REQUEST, PROJECT_CODE } from "../api/kb/config";
+import {
+  KB_API_TARGET_URL,
+  MAX_CLAUSES_PER_DELETE,
+  MAX_CLAUSES_PER_REQUEST,
+  PROJECT_CODE,
+  setApiMode,
+  type ApiMode,
+} from "../api/kb/config";
 import type { DocType } from "../api/kb/types";
 
 type Tab = "render" | "json" | "log";
@@ -182,13 +189,28 @@ export const Editor = () => {
 
   const dirty = pendingChanges > 0;
 
-  // Warn before leaving the page with unsaved changes.
+  // Warn before leaving the page with unsaved changes (unless the user has
+  // already agreed to discard them, e.g. when switching backends).
+  const discardConfirmedRef = useRef(false);
   useEffect(() => {
     if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!discardConfirmedRef.current) e.preventDefault();
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
+
+  // The API client is created once per page load, so switching backends
+  // stores the choice and reloads.
+  const switchApiMode = (next: ApiMode) => {
+    if (next === apiMode) return;
+    const target = next === "mock" ? "the mock backend" : "the live API";
+    if (dirty && !window.confirm(`You have unsaved changes. Discard them and switch to ${target}?`)) return;
+    discardConfirmedRef.current = true;
+    setApiMode(next);
+    window.location.reload();
+  };
 
   // Replaces the editor's state (not setContent), so undo history can't reach
   // back into the previous document and the edit guards don't judge the swap.
@@ -558,11 +580,26 @@ export const Editor = () => {
           <div className="panel-header scope-header">
             <span className="scope-breadcrumb">
               {scope ? describeScope(scope, entityTitle).join(" › ") : "Nothing loaded"}
-              <span className="scope-mock">
-                {" "}
-                · {PROJECT_CODE}
-                {usingMockApi && " · mock backend"}
-              </span>
+              <span className="scope-mock"> · {PROJECT_CODE}</span>
+            </span>
+            <span
+              className="api-mode"
+              role="group"
+              aria-label="Backend"
+              title={apiMode === "live" ? `Live API: ${KB_API_TARGET_URL}` : "In-memory mock with sample data"}
+            >
+              {(["mock", "live"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={apiMode === m ? "api-mode__option api-mode__option--active" : "api-mode__option"}
+                  aria-pressed={apiMode === m}
+                  disabled={busy}
+                  onClick={() => switchApiMode(m)}
+                >
+                  {m === "mock" ? "Mock" : "Live"}
+                </button>
+              ))}
             </span>
             {statusText && (
               <span className={dirty ? "scope-status scope-status--dirty" : "scope-status"}>{statusText}</span>
@@ -630,15 +667,13 @@ export const Editor = () => {
             >
               Pending requests
             </button>
-            {apiLog && (
-              <button
-                type="button"
-                className={activeTab === "log" ? "tab tab--active" : "tab"}
-                onClick={() => setActiveTab("log")}
-              >
-                API log
-              </button>
-            )}
+            <button
+              type="button"
+              className={activeTab === "log" ? "tab tab--active" : "tab"}
+              onClick={() => setActiveTab("log")}
+            >
+              API log
+            </button>
           </div>
 
           {activeTab === "render" && (
@@ -647,7 +682,7 @@ export const Editor = () => {
           {activeTab === "json" && (
             <textarea className="panel-body json-surface" value={payload} readOnly spellCheck={false} />
           )}
-          {activeTab === "log" && apiLog && <ApiLogPanel log={apiLog} />}
+          {activeTab === "log" && <ApiLogPanel log={apiLog} />}
         </div>
       </div>
 

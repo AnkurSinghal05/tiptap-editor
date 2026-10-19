@@ -1,16 +1,22 @@
-import { createApiLog, withApiLog, type ApiLog } from "./apiLog";
+import { createApiLog, logExchange, withApiLog, type ApiLog } from "./apiLog";
 import { createHttpKbApi, type KbApi } from "./client";
-import { KB_API_BASE_URL, KB_API_TOKEN, PROJECT_CODE } from "./config";
+import { KB_API_BASE_URL, KB_API_TOKEN, PROJECT_CODE, getApiMode } from "./config";
 import { createMockKbApi } from "./mock";
 
-export const usingMockApi = !KB_API_BASE_URL;
+// Fixed for this page load; the switch in the editor stores a new mode and reloads.
+export const apiMode = getApiMode();
+export const usingMockApi = apiMode === "mock";
 
-const mockLog = usingMockApi ? createApiLog() : null;
+const log = createApiLog();
 
-// Calls to the mock backend are recorded here (shown in the API log tab).
-export const apiLog: ApiLog | null = mockLog;
+// Every call, mock or live, is recorded here (shown in the API log tab).
+export const apiLog: ApiLog = log;
 
-// Real backend when VITE_KB_API_BASE_URL is set, otherwise the in-memory mock.
-export const kbApi: KbApi = mockLog
-  ? withApiLog(createMockKbApi(), mockLog, "kb mock")
-  : createHttpKbApi({ baseUrl: KB_API_BASE_URL!, token: KB_API_TOKEN, projectCode: PROJECT_CODE });
+export const kbApi: KbApi = usingMockApi
+  ? withApiLog(createMockKbApi(), log, "kb mock")
+  : createHttpKbApi({
+      baseUrl: KB_API_BASE_URL,
+      token: KB_API_TOKEN,
+      projectCode: PROJECT_CODE,
+      onExchange: (exchange) => logExchange(log, "kb live", exchange),
+    });

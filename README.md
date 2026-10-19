@@ -26,7 +26,12 @@ Document
   - A container can't be deleted on its own. Deleting a subsection or workflow deletes its clauses, after a confirmation.
   - Saved clauses can't be moved to another container or reordered; the editor blocks it. Copy the text into a new clause instead.
 - **Structure rules:** subsection types and workflow ids come from fixed lists in `src/editor/taxonomy.ts`. A subsection's (type, id) is unique within its entity, and each workflow appears at most once per subsection. Heading levels are set automatically, and headings can't appear inside clauses.
-- **Backend:** see [docs/kb-api-integration.md](docs/kb-api-integration.md). Copy `.env.example` to `.env.local` and set `VITE_KB_API_BASE_URL` (and `VITE_KB_TOKEN` for local development) to use the real API. Without it, an in-memory mock (`src/api/kb/mock.ts`) is used, seeded with the documents from the backend team's Postman collection; its data resets on page reload. While the mock is in use, the **API log** tab records every call (method, endpoint, `Project-Code` header, request body, status and response in the real API's envelope); entries can be expanded, cleared or downloaded as JSON, and each call is also logged to the browser console (debug level). This milestone always sends `Project-Code: THRIWE_APP` (base editing only).
+- **Backend:** see [docs/kb-api-integration.md](docs/kb-api-integration.md).
+  - **Mock / Live switch** (editor header): **Live** uses the Knowledge Base API, by default staging (`https://stag-pgm-mgmt-api.thriwe.com/api/v1`). **Mock** uses an in-memory backend (`src/api/kb/mock.ts`) with sample data from the backend team's Postman collection, which resets on page reload. The choice is remembered in the browser; switching reloads the page. `VITE_KB_API_MODE` sets the starting mode (default `live`).
+  - **Local setup:** copy `.env.example` to `.env.local`. Live mode needs a session token in `VITE_KB_TOKEN`; it's only used in development and never included in a build. `VITE_KB_API_BASE_URL` points at a different API.
+  - **Dev proxy:** the API doesn't allow browser calls from `localhost` (no CORS headers), so in development live calls go to `/kb-api` on the dev server, which forwards them (see `vite.config.ts`). A built app calls the API directly, so the API must allow the deployed app's origin.
+  - **API log** tab: records every call in both modes (method, endpoint, `Project-Code` header, request body, status and response; live mode shows the server's raw response). Entries can be expanded, cleared or downloaded as JSON, and each call is also logged to the browser console (debug level). The token is never logged.
+  - This milestone always sends `Project-Code: THRIWE_APP` (base editing only).
 
 ## Develop
 

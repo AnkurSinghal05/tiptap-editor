@@ -52,6 +52,7 @@ The editor already does this, and reloads with GET after saving.
 4. **There's no "list entities" endpoint for the base program.** `THRIWE_APP` can only pick entities that already have a document; a new entity's id has to be typed in.
 5. **Should the backend validate workflow ids too?** subSection types are now validated; workflow ids still accept anything, so other clients can add values outside the agreed list (`noshow` instead of `no-show`). `rentals` arrived this way before it was added to the list.
 6. **What happens to existing `vendor` subSections?** Data recorded on Oct 14 has vendor subSections (`V-1` Caddie Services, `VND-0031` Watersports Desk, `VND-0045` Poolside Cafe). The editor loads them but flags them. Adding a clause to one would likely be rejected, since append and single add send the subSection's type. Will they be migrated to partner / facility / service, or removed?
+7. **CORS for the deployed app.** Staging answers a browser preflight from `http://localhost:5173` with 204 but no `Access-Control-Allow-Origin`, so browsers block direct calls. In development the editor works around this with a dev-server proxy, but a deployed build calls the API directly. Request: allow the origin the editor will be deployed on, with the `Authorization`, `Project-Code` and `Content-Type` headers and credentials.
 
 **Resolved:**
 
@@ -94,4 +95,4 @@ Agreed on Oct 14, 2026, and built in this repo:
    - **If some requests fail:** the rest stay saved and the failed clauses are highlighted.
    - **If an add or append gets no response:** saving is blocked until the user reloads, so the clauses can't be added twice.
 2. **First milestone:** base editing only. Every request sends `Project-Code: THRIWE_APP`; program views (program selector, Revert, History) come later.
-3. **Backend URL:** a placeholder (`VITE_KB_API_BASE_URL` in `.env.example`). Until it's set, the editor uses an in-memory mock that follows the handover. The mock's sample data comes from the Postman collection, minus the vendor subSections the API no longer accepts.
+3. **Backend:** staging, `https://stag-pgm-mgmt-api.thriwe.com/api/v1` (overridable with `VITE_KB_API_BASE_URL`), with a **Mock / Live** switch in the editor. Mock is an in-memory backend that follows the handover; its sample data comes from the Postman collection, minus the vendor subSections the API no longer accepts. In development, live calls go through a dev-server proxy (see open question 7).

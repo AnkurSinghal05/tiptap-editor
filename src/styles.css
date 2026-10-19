@@ -177,6 +177,39 @@ body {
   font-weight: 400;
 }
 
+/* Mock / Live backend switch */
+.api-mode {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.api-mode__option {
+  padding: 3px 10px;
+  border: none;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.api-mode__option + .api-mode__option {
+  border-left: 1px solid #cbd5e1;
+}
+
+.api-mode__option--active {
+  background: #0f172a;
+  color: #fff;
+  cursor: default;
+}
+
+.api-mode__option:disabled:not(.api-mode__option--active) {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
 .scope-status {
   font-weight: 500;
   color: #64748b;

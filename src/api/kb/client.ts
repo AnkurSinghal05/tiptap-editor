@@ -1,3 +1,4 @@
+import type { KbExchange } from "./apiLog";
 import { kbRoutes, type KbRoute } from "./routes";
 import type {
   AddClauseBody,
@@ -50,6 +51,8 @@ export const createHttpKbApi = (opts: {
   baseUrl: string;
   token?: string;
   projectCode: string;
+  // Called after every request with the raw response (for the API log).
+  onExchange?: (exchange: KbExchange) => void;
 }): KbApi => {
   const base = opts.baseUrl.replace(/\/$/, "");
 
@@ -58,6 +61,8 @@ export const createHttpKbApi = (opts: {
     if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
     if (route.body !== undefined) headers["Content-Type"] = "application/json";
 
+    const at = new Date().toISOString();
+    const startedAt = performance.now();
     let res: Response;
     try {
       res = await fetch(`${base}${route.path}`, {
@@ -67,15 +72,22 @@ export const createHttpKbApi = (opts: {
         body: route.body === undefined ? undefined : JSON.stringify(route.body),
       });
     } catch {
-      throw new KbApiError(0, "Could not reach the knowledge base service.");
+      const message = "Could not reach the knowledge base service.";
+      opts.onExchange?.({ route, status: 0, response: { error: message, note: "No response from the server." }, startedAt, at });
+      throw new KbApiError(0, message);
     }
 
+    // Read as text first so a non-JSON body still shows up in the log.
+    const text = await res.text().catch(() => "");
     let body: Partial<Envelope<T>> = {};
+    let raw: unknown = text;
     try {
-      body = await res.json();
+      raw = JSON.parse(text);
+      if (raw && typeof raw === "object") body = raw as Partial<Envelope<T>>;
     } catch {
       // non-JSON body
     }
+    opts.onExchange?.({ route, status: res.status, response: raw, startedAt, at });
     if (!res.ok) {
       throw new KbApiError(res.status, body.message ?? `Request failed (${res.status}).`, body.errors ?? []);
     }

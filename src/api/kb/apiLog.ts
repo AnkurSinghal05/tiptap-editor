@@ -3,8 +3,8 @@ import { PROJECT_CODE } from "./config";
 import { kbRoutes, type KbRoute } from "./routes";
 
 // Records every API call (endpoint, payload, response) for the API log tab.
-// Responses are shown in the real API's envelope, so the log reads like the
-// backend's traffic.
+// Live calls are logged with the server's raw response; mock calls with the
+// response wrapped in the API's envelope, so both read like backend traffic.
 
 export interface ApiLogEntry {
   id: number;
@@ -26,6 +26,19 @@ export interface ApiLog {
   entries(): ApiLogEntry[];
   subscribe(listener: () => void): () => void;
   clear(): void;
+}
+
+export type ApiLogWriter = ReturnType<typeof createApiLog>;
+
+// One request and its outcome, as seen by whoever made the call.
+export interface KbExchange {
+  route: KbRoute;
+  // 0 when there was no response (network error).
+  status: number;
+  response: unknown;
+  // performance.now() and ISO time when the call started.
+  startedAt: number;
+  at: string;
 }
 
 export const createApiLog = () => {
@@ -55,24 +68,32 @@ export const createApiLog = () => {
 
 const snapshot = <T>(value: T): T => (value === undefined ? value : structuredClone(value));
 
-// Wraps an API so every call is recorded in `log` and mirrored to the console.
-export const withApiLog = (api: KbApi, log: ReturnType<typeof createApiLog>, label = "kb api"): KbApi => {
+// Adds one exchange to the log and mirrors it to the console (debug level).
+// Only `Project-Code` is recorded from the headers, never the token.
+export const logExchange = (log: ApiLogWriter, label: string, x: KbExchange) => {
+  const entry = {
+    at: x.at,
+    method: x.route.method,
+    path: x.route.path,
+    headers: { "Project-Code": PROJECT_CODE },
+    requestBody: snapshot(x.route.body),
+    status: x.status,
+    response: snapshot(x.response),
+    durationMs: Math.round(performance.now() - x.startedAt),
+  };
+  log.add(entry);
+  console.debug(`[${label}] ${entry.method} ${entry.path} → ${entry.status || "no response"}`, entry);
+};
+
+// Wraps an API (the mock) so every call is recorded in `log`.
+export const withApiLog = (api: KbApi, log: ApiLogWriter, label = "kb api"): KbApi => {
   const record = async <T>(route: KbRoute, call: () => Promise<T>, toEnvelope: (result: T) => Envelope<unknown>) => {
-    const started = performance.now();
+    const startedAt = performance.now();
     const at = new Date().toISOString();
-    const base = {
-      at,
-      method: route.method,
-      path: route.path,
-      headers: { "Project-Code": PROJECT_CODE },
-      requestBody: snapshot(route.body),
-    };
     try {
       const result = await call();
       const envelope = toEnvelope(result);
-      const entry = { ...base, status: envelope.code, response: snapshot(envelope), durationMs: Math.round(performance.now() - started) };
-      log.add(entry);
-      console.debug(`[${label}] ${entry.method} ${entry.path} → ${entry.status}`, entry);
+      logExchange(log, label, { route, status: envelope.code, response: envelope, startedAt, at });
       return result;
     } catch (err) {
       const status = err instanceof KbApiError ? err.status : 0;
@@ -85,9 +106,7 @@ export const withApiLog = (api: KbApi, log: ReturnType<typeof createApiLog>, lab
               code: status,
               ...(err instanceof KbApiError && err.fieldErrors.length > 0 && { errors: err.fieldErrors }),
             };
-      const entry = { ...base, status, response: snapshot(response), durationMs: Math.round(performance.now() - started) };
-      log.add(entry);
-      console.debug(`[${label}] ${entry.method} ${entry.path} → ${status || "no response"}`, entry);
+      logExchange(log, label, { route, status, response, startedAt, at });
       throw err;
     }
   };
