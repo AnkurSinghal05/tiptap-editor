@@ -41,8 +41,10 @@ import { SubSectionDialog, type NewSubSection } from "../components/SubSectionDi
 import { ScopeBar } from "../components/ScopeBar";
 import { apiLog, apiMode, kbApi } from "../api/kb";
 import { ApiLogPanel } from "../components/ApiLogPanel";
+import { KbApiError } from "../api/kb/client";
 import {
   KB_API_TARGET_URL,
+  KB_API_TOKEN,
   MAX_CLAUSES_PER_DELETE,
   MAX_CLAUSES_PER_REQUEST,
   PROJECT_CODE,
@@ -66,6 +68,23 @@ interface PickerState {
 }
 
 const EMPTY_BASELINE: Baseline = { clauses: new Map(), containers: new Set() };
+
+// A load failure, with a hint when live mode is refused because no
+// development token is set.
+const loadErrorStatus = (err: unknown): Status => {
+  const message = err instanceof Error ? err.message : String(err);
+  const unauthorized = err instanceof KbApiError && (err.status === 401 || err.status === 403);
+  if (unauthorized && apiMode === "live" && import.meta.env.DEV && !KB_API_TOKEN) {
+    return {
+      kind: "error",
+      message,
+      problems: [
+        "No session token is set. Put it in VITE_KB_TOKEN in .env.local (not .env.example), then restart npm run dev.",
+      ],
+    };
+  }
+  return { kind: "error", message };
+};
 
 const PLACEHOLDER_DOC = {
   type: "doc",
@@ -272,7 +291,7 @@ export const Editor = () => {
           : { kind: savedStatus ? "saved" : "idle" },
       );
     } catch (err) {
-      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+      setStatus(loadErrorStatus(err));
     } finally {
       editor.setEditable(scopeRef.current !== null, false);
     }
@@ -311,7 +330,7 @@ export const Editor = () => {
         if (entityId) await loadScope({ docType: "tnc", entityId }, { force: true });
         else setStatus({ kind: "error", message: "No documents yet. Choose “+ New entity…” to create one." });
       } catch (err) {
-        setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+        setStatus(loadErrorStatus(err));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

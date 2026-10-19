@@ -16,8 +16,10 @@ export const KB_API_BASE_URL: string = import.meta.env.DEV ? KB_API_DEV_PROXY_PA
 // Session token sent as `Authorization: Bearer <token>`, for local development
 // only: Vite inlines VITE_* values into the bundle, so it's never read in a
 // production build. Otherwise the session cookie is used.
+// Vite reads it from .env.local (not .env.example) when the dev server starts.
+// A leading "Bearer " is accepted and dropped.
 export const KB_API_TOKEN: string | undefined = import.meta.env.DEV
-  ? import.meta.env.VITE_KB_TOKEN || undefined
+  ? import.meta.env.VITE_KB_TOKEN?.trim().replace(/^Bearer\s+/i, "") || undefined
   : undefined;
 
 // Mock or live backend: the choice made with the switch in the editor (kept
