@@ -84,7 +84,20 @@ const validateDocument = (body: KbDocument, { requireHeading }: { requireHeading
       errors.push({ field: `${path}.attrs.tags`, message: "must be an array of strings" });
     }
   };
+  // At most one heading per container, and only the node types it allows.
+  const checkChildren = (container: JSONContent, path: string, allowed: string[]) => {
+    if (kids(container).filter((c) => c.type === "heading").length > 1) {
+      errors.push({ field: path, message: "can have at most one heading" });
+    }
+    kids(container).forEach((c, i) => {
+      if (!allowed.includes(c.type ?? "")) {
+        errors.push({ field: `${path}.content[${i}]`, message: `${c.type ?? "node"} is not allowed in a ${container.type}` });
+      }
+    });
+  };
 
+  // A workflow directly under the section gets its own error below.
+  checkChildren(section, sp, ["heading", "clause", "subSection", "workflow"]);
   const subKeys = new Set<string>();
   kids(section).forEach((child, i) => {
     const path = `${sp}.content[${i}]`;
@@ -104,6 +117,7 @@ const validateDocument = (body: KbDocument, { requireHeading }: { requireHeading
     }
     subKeys.add(`${type}:${id}`);
 
+    checkChildren(child, path, ["heading", "clause", "workflow"]);
     const wfIds = new Set<string>();
     kids(child).forEach((wf, j) => {
       const wpath = `${path}.content[${j}]`;
@@ -113,6 +127,7 @@ const validateDocument = (body: KbDocument, { requireHeading }: { requireHeading
       if (!wid) errors.push({ field: `${wpath}.attrs.id`, message: "is required" });
       else if (wfIds.has(wid)) errors.push({ field: `${wpath}.attrs.id`, message: "duplicate workflow id in this subSection" });
       wfIds.add(wid);
+      checkChildren(wf, wpath, ["heading", "clause"]);
       kids(wf).forEach((c, k) => isClause(c) && checkClause(c, `${wpath}.content[${k}]`));
     });
   });
@@ -160,7 +175,7 @@ export const createMockKbApi = (options: MockKbOptions = {}): KbApi => {
 
   const getSection = (type: DocType, entityId: string) => {
     const section = store.get(`${type}:${entityId}`);
-    if (!section || countClauses(section) === 0) throw new KbApiError(404, "Document not found");
+    if (!section || countClauses(section) === 0) throw new KbApiError(404, "Knowledge base not found for this type and entity");
     return section;
   };
 
@@ -238,7 +253,8 @@ export const createMockKbApi = (options: MockKbOptions = {}): KbApi => {
       if (!!params.sub_section_type !== !!params.sub_section_id) {
         errors.push({ field: "sub_section_type", message: "sub_section_type and sub_section_id go together" });
       }
-      if (params.sub_section_id && !params.entity_id) errors.push({ field: "entity_id", message: "is required with a subSection filter" });
+      // The backend can't list documents across entities.
+      if (!params.entity_id) errors.push({ field: "entity_id", message: "is required" });
       if (params.workflow_id && !params.sub_section_id) errors.push({ field: "workflow_id", message: "needs the subSection filter" });
       const limit = params.limit ?? 10;
       const offset = params.offset ?? 0;
@@ -289,7 +305,7 @@ export const createMockKbApi = (options: MockKbOptions = {}): KbApi => {
       const section = clone(kids(body.doc)[0]);
       const key = `${body.type}:${section.attrs!.id}`;
       if (store.has(key) && countClauses(store.get(key)!) > 0) {
-        throw new KbApiError(409, "Document already exists for this entity and type");
+        throw new KbApiError(409, "Knowledge base already exists for this type and entity");
       }
       const assign = (node: JSONContent): JSONContent => {
         if (isClause(node)) return cleanClause(node, `cl-${uuid()}`);

@@ -38,7 +38,7 @@ import { Toolbar } from "./Toolbar";
 import { TagsDialog } from "../components/TagsDialog";
 import { OptionPickerDialog } from "../components/OptionPickerDialog";
 import { SubSectionDialog, type NewSubSection } from "../components/SubSectionDialog";
-import { ScopeBar } from "../components/ScopeBar";
+import { ScopeBar, type SubSectionsRefresh } from "../components/ScopeBar";
 import { apiLog, apiMode, kbApi } from "../api/kb";
 import { ApiLogPanel } from "../components/ApiLogPanel";
 import { KbApiError } from "../api/kb/client";
@@ -124,7 +124,8 @@ export const Editor = () => {
   // just-saved clause picks its real id up again).
   const sessionIdMapRef = useRef(new Map<string, string>());
   const clauseErrorsRef = useRef(new Map<string, string[]>());
-  const [listToken, setListToken] = useState(0);
+  // Scope bar refreshes, only when a save could have changed what it shows.
+  const [subSectionsRefresh, setSubSectionsRefresh] = useState<SubSectionsRefresh>({});
 
   // Ref-based callback keeps the extension's option stable while letting
   // React state setters be invoked through the closure below.
@@ -263,10 +264,17 @@ export const Editor = () => {
         sub_section_id: next.subSection?.id,
         workflow_id: next.subSection ? next.workflow : undefined,
         limit: 1,
+      }).catch((err: unknown) => {
+        // The API may answer "not found" instead of an empty list.
+        if (err instanceof KbApiError && err.status === 404) return { documents: [] };
+        throw err;
       });
       if (documents.length === 0) {
         if (savedStatus) {
-          // The save removed the last clause in this selection.
+          // The save removed the last clause in this selection. Listings skip
+          // documents with no clauses, so the entity may have none any more.
+          // (A scoped save has already refreshed the scope bar.)
+          if (!next.subSection) setSubSectionsRefresh({});
           scopeRef.current = null;
           baselineRef.current = EMPTY_BASELINE;
           editor.view.updateState(
@@ -283,6 +291,8 @@ export const Editor = () => {
       const doc = editor.schema.nodeFromJSON(documents[0].doc);
       doc.check();
       showDocument(doc, next, { creating: false });
+      // The whole entity holds every subsection, so the scope bar reuses it.
+      if (!next.subSection) setSubSectionsRefresh({ document: documents[0] });
 
       const problems = findStructureProblems(doc);
       setStatus(
@@ -317,24 +327,6 @@ export const Editor = () => {
     editor.setEditable(true, false);
     editor.commands.focus("end");
   };
-
-  // On first load, open the first entity that has a T&C document.
-  const initialLoadRef = useRef(false);
-  useEffect(() => {
-    if (!editor || initialLoadRef.current) return;
-    initialLoadRef.current = true;
-    void (async () => {
-      try {
-        const { documents } = await kbApi.listDocuments({ type: "tnc", limit: 1 });
-        const entityId = documents[0]?.doc.content?.[0]?.attrs?.id;
-        if (entityId) await loadScope({ docType: "tnc", entityId }, { force: true });
-        else setStatus({ kind: "error", message: "No documents yet. Choose “+ New entity…” to create one." });
-      } catch (err) {
-        setStatus(loadErrorStatus(err));
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
 
   if (!editor) return null;
 
@@ -394,7 +386,6 @@ export const Editor = () => {
         const result = await createDocument(kbApi, current.docType, doc);
         setClauseErrors(result.clauseErrors);
         if (result.ok) {
-          setListToken((t) => t + 1);
           await loadScope(current, { force: true, savedStatus: true });
         } else {
           setStatus({ kind: "error", message: "The document wasn't created:", problems: errorList(result) });
@@ -406,15 +397,19 @@ export const Editor = () => {
       for (const [from, to] of outcome.idSwaps) sessionIdMapRef.current.set(from, to);
       baselineRef.current = outcome.baseline;
       applyIdSwaps(outcome.idSwaps);
-      setListToken((t) => t + 1);
 
       if (outcome.failed === 0) {
+        // A scoped reload holds only part of the entity, so its subsections
+        // are fetched; a whole-entity reload refreshes them itself.
+        if (current.subSection) setSubSectionsRefresh({});
         // Re-render from the backend: it decides the final order (new clauses last).
         await loadScope(current, { force: true, savedStatus: true });
         return;
       }
 
-      // Partial save: keep the editor as it is, with what failed still pending.
+      // Partial save: nothing is reloaded, so refresh the scope bar.
+      setSubSectionsRefresh({});
+      // Keep the editor as it is, with what failed still pending.
       outcome.baseline.containers = new Set([
         ...outcome.baseline.containers,
         ...containersWithSavedClauses(editor.state.doc, outcome.baseline),
@@ -592,7 +587,12 @@ export const Editor = () => {
 
   return (
     <>
-      <ScopeBar loading={busy} refreshToken={listToken} onLoad={(next) => void loadScope(next)} onCreate={startCreate} />
+      <ScopeBar
+        loading={busy}
+        subSectionsRefresh={subSectionsRefresh}
+        onLoad={(next) => void loadScope(next)}
+        onCreate={startCreate}
+      />
 
       <div className="workspace">
         <div className="panel">

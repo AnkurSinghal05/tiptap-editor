@@ -124,8 +124,7 @@ body {
   color: #64748b;
 }
 
-.scope-bar select,
-.scope-bar input {
+.scope-bar select {
   min-width: 180px;
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
@@ -150,6 +149,12 @@ body {
 .scope-save:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+.scope-bar__hint {
+  padding: 7px 0;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .scope-bar__error {
@@ -290,6 +295,14 @@ body {
   cursor: not-allowed;
 }
 
+.api-log__note {
+  margin: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
 .api-log__empty {
   padding: 12px;
   color: #94a3b8;
@@ -300,12 +313,29 @@ body {
 }
 
 .api-log__entry summary {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 8px 6ch minmax(0, 1fr) auto auto;
+  align-items: baseline;
   gap: 8px;
   padding: 6px 12px;
   cursor: pointer;
+  list-style: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.api-log__entry summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Disclosure chevron; rotates when the row is expanded. */
+.api-log__entry summary::before {
+  content: "▸";
+  color: #94a3b8;
+  transition: transform 0.15s;
+}
+
+.api-log__entry[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .api-log__entry summary:hover {
@@ -313,7 +343,6 @@ body {
 }
 
 .api-log__method {
-  min-width: 52px;
   font-weight: 700;
 }
 
@@ -322,16 +351,19 @@ body {
 .api-log__method--patch { color: #b45309; }
 .api-log__method--delete { color: #b91c1c; }
 
+/* Full URL, wrapping between query parameters (or anywhere, for long values). */
 .api-log__path {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: #0f172a;
+}
+
+.api-log__query {
+  color: #64748b;
 }
 
 .api-log__status {
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .api-log__status--ok { color: #15803d; }
@@ -365,6 +397,54 @@ body {
   color: #e2e8f0;
   border-radius: 6px;
   font-size: 11px;
+}
+
+.api-log__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.api-log__copy {
+  padding: 3px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.api-log__copy:hover {
+  background: #f1f5f9;
+}
+
+.api-log__params {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.api-log__params th,
+.api-log__params td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.api-log__params th {
+  width: 35%;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.api-log__params td {
+  color: #0f172a;
 }
 
 .app-header {

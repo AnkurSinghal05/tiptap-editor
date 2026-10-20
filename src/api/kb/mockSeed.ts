@@ -4,7 +4,8 @@ import type { KbDocument } from "./types";
 // Sample data for the mock backend, taken from the documents in the backend
 // team's Postman collection (recorded GET / create responses). Vendor
 // subSections from those recordings are left out: the API no longer accepts
-// that type (handoff of Oct 15, 2026).
+// that type (handoff of Oct 15, 2026). Entity ids follow the editor's fixed
+// list (the recordings used `airport-transfer`).
 
 const heading = (level: 1 | 2 | 3, text: string): JSONContent => ({
   type: "heading",
@@ -38,7 +39,7 @@ const doc = (id: string, title: string, ...children: JSONContent[]): KbDocument 
 
 export const MOCK_SEED: KbDocument[] = [
   doc(
-    "airport-transfer",
+    "airport-transfer-booking",
     "Airport Transfer",
     clause("cl-a1000001-0000-4000-8000-000000000001", ["eligibility"], p("Airport transfers are available to eligible members with an active card or membership at the time of booking and on the date of travel.")),
     clause("cl-a1000001-0000-4000-8000-000000000002", ["eligibility", "usage-limit"], p("Each eligible member may avail the number of complimentary transfers allotted to their program per calendar year. Unused transfers do not carry forward and cannot be exchanged for cash.")),

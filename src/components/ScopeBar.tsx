@@ -1,21 +1,32 @@
 import { useEffect, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { kbApi } from "../api/kb";
+import { KbApiError } from "../api/kb/client";
 import { DOC_TYPES, type DocType, type KbDocument } from "../api/kb/types";
 import type { Scope } from "../editor/scope";
-import { SUBSECTION_TYPES, WORKFLOWS, labelOf, type SubSectionType, type WorkflowId } from "../editor/taxonomy";
+import {
+  ENTITIES,
+  SUBSECTION_TYPES,
+  WORKFLOWS,
+  labelOf,
+  type EntityId,
+  type SubSectionType,
+  type WorkflowId,
+} from "../editor/taxonomy";
+
+// A new object refreshes what the scope bar knows about the chosen entity
+// (whether it has a document, and its subsections): from `document` (an
+// entity's whole document, just loaded from the backend) when it's for the
+// chosen entity, otherwise by fetching it.
+export interface SubSectionsRefresh {
+  document?: KbDocument;
+}
 
 interface ScopeBarProps {
   loading: boolean;
-  // Bump to re-fetch the lists (e.g. after a save created a subsection).
-  refreshToken: number;
+  subSectionsRefresh: SubSectionsRefresh;
   onLoad: (scope: Scope) => void;
   onCreate: (docType: DocType, entityId: string, title: string) => void;
-}
-
-interface EntityOption {
-  id: string;
-  title: string;
 }
 
 interface SubSectionOption {
@@ -25,88 +36,73 @@ interface SubSectionOption {
   workflows: WorkflowId[];
 }
 
-const NEW_ENTITY = "__new__";
-const PAGE_SIZE = 100;
-
 const textOf = (n: JSONContent | undefined): string =>
   !n ? "" : n.text ?? (n.content ?? []).map(textOf).join("");
 const sectionOf = (d: KbDocument) => d.doc.content?.[0];
 const subKey = (s: { type: string; id: string }) => `${s.type}:${s.id}`;
 
+const subSectionsOf = (d: KbDocument | undefined): SubSectionOption[] =>
+  ((d && sectionOf(d)?.content) ?? [])
+    .filter((n) => n.type === "subSection")
+    .map((n) => ({
+      type: n.attrs!.type as SubSectionType,
+      id: n.attrs!.id as string,
+      name: (n.attrs!.name as string) || textOf(n.content?.[0]),
+      workflows: (n.content ?? []).filter((w) => w.type === "workflow").map((w) => w.attrs!.id as WorkflowId),
+    }));
+
 // Filters for what to load: document type and entity (required) →
 // subsection (optional) → workflow (optional, only once a subsection is chosen).
-export const ScopeBar = ({ loading, refreshToken, onLoad, onCreate }: ScopeBarProps) => {
+// Entities come from a fixed list; one without a document of the chosen type
+// offers to start one instead.
+export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: ScopeBarProps) => {
   const [docType, setDocType] = useState<DocType>(DOC_TYPES[0].value);
-  const [entities, setEntities] = useState<EntityOption[]>([]);
-  const [entityId, setEntityId] = useState("");
+  const [entityId, setEntityId] = useState<EntityId | "">("");
+  // null until known (no entity chosen, still fetching, or the fetch failed).
+  const [hasDocument, setHasDocument] = useState<boolean | null>(null);
   const [subSections, setSubSections] = useState<SubSectionOption[]>([]);
   const [selectedSub, setSelectedSub] = useState("");
   const [workflow, setWorkflow] = useState<WorkflowId | "">("");
-  const [newId, setNewId] = useState("");
-  const [newTitle, setNewTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Entities that have a document of this type (every page).
+  // The chosen entity's document: whether it exists, and its subsections
+  // (and their workflows).
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setError(null);
-      const found: EntityOption[] = [];
-      try {
-        for (let offset = 0; ; offset += PAGE_SIZE) {
-          const { documents, pagination } = await kbApi.listDocuments({ type: docType, limit: PAGE_SIZE, offset });
-          for (const d of documents) {
-            const section = sectionOf(d);
-            if (section?.attrs?.id) found.push({ id: section.attrs.id, title: textOf(section.content?.[0]) });
-          }
-          if (offset + PAGE_SIZE >= pagination.total) break;
-        }
-      } catch (err) {
-        if (!cancelled) setError(`Couldn't load entities: ${(err as Error).message}`);
-      }
-      if (cancelled) return;
-      setEntities(found);
-      setEntityId((current) =>
-        current === NEW_ENTITY || found.some((e) => e.id === current) ? current : found[0]?.id ?? NEW_ENTITY,
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [docType, refreshToken]);
-
-  // Subsections (and their workflows) of the chosen entity.
-  useEffect(() => {
+    setError(null);
+    setHasDocument(null);
     setSubSections([]);
-    if (!entityId || entityId === NEW_ENTITY) return;
+    if (!entityId) return;
+    const show = (d: KbDocument | undefined) => {
+      const subs = subSectionsOf(d);
+      setHasDocument(!!d);
+      setSubSections(subs);
+      setSelectedSub((current) => (subs.some((s) => subKey(s) === current) ? current : ""));
+    };
+    // The editor just loaded this entity: no need to fetch it again.
+    const loaded = subSectionsRefresh.document;
+    if (loaded && loaded.type === docType && sectionOf(loaded)?.attrs?.id === entityId) {
+      show(loaded);
+      return;
+    }
     let cancelled = false;
     kbApi
       .listDocuments({ type: docType, entity_id: entityId, limit: 1 })
-      .then(({ documents }) => {
+      .then(({ documents }) => !cancelled && show(documents[0]))
+      .catch((err: Error) => {
         if (cancelled) return;
-        const section = documents[0] && sectionOf(documents[0]);
-        const subs = (section?.content ?? [])
-          .filter((n) => n.type === "subSection")
-          .map((n) => ({
-            type: n.attrs!.type as SubSectionType,
-            id: n.attrs!.id as string,
-            name: (n.attrs!.name as string) || textOf(n.content?.[0]),
-            workflows: (n.content ?? []).filter((w) => w.type === "workflow").map((w) => w.attrs!.id as WorkflowId),
-          }));
-        setSubSections(subs);
-        setSelectedSub((current) => (subs.some((s) => subKey(s) === current) ? current : ""));
-      })
-      .catch((err: Error) => !cancelled && setError(`Couldn't load subsections: ${err.message}`));
+        // The API may answer "not found" instead of an empty list.
+        if (err instanceof KbApiError && err.status === 404) show(undefined);
+        else setError(`Couldn't load this entity: ${err.message}`);
+      });
     return () => {
       cancelled = true;
     };
-  }, [docType, entityId, refreshToken]);
+  }, [docType, entityId, subSectionsRefresh]);
 
   const sub = subSections.find((s) => subKey(s) === selectedSub);
-  const creating = entityId === NEW_ENTITY;
 
   const load = () => {
-    if (!entityId || creating) return;
+    if (!entityId) return;
     onLoad({
       docType,
       entityId,
@@ -115,14 +111,9 @@ export const ScopeBar = ({ loading, refreshToken, onLoad, onCreate }: ScopeBarPr
     });
   };
 
-  const create = () => {
-    const id = newId.trim();
-    const title = newTitle.trim();
-    if (!id || !title) return setError("Entity id and title are required.");
-    if (id.length > 100) return setError("Entity id can be at most 100 characters.");
-    if (entities.some((e) => e.id === id)) return setError(`"${id}" already has a ${labelOf(DOC_TYPES, docType)} document. Select it instead.`);
-    setError(null);
-    onCreate(docType, id, title);
+  // The entity's name becomes the title (editable until the first save).
+  const start = () => {
+    if (entityId) onCreate(docType, entityId, labelOf(ENTITIES, entityId));
   };
 
   return (
@@ -150,31 +141,26 @@ export const ScopeBar = ({ loading, refreshToken, onLoad, onCreate }: ScopeBarPr
         <select
           value={entityId}
           onChange={(e) => {
-            setEntityId(e.target.value);
+            setEntityId(e.target.value as EntityId);
             setSelectedSub("");
             setWorkflow("");
           }}
         >
-          {entities.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.title ? `${e.title} (${e.id})` : e.id}
+          <option value="" disabled>
+            Choose an entity…
+          </option>
+          {ENTITIES.map((e) => (
+            <option key={e.value} value={e.value}>
+              {e.label}
             </option>
           ))}
-          <option value={NEW_ENTITY}>+ New entity…</option>
         </select>
       </label>
 
-      {creating ? (
+      {hasDocument === false ? (
         <>
-          <label>
-            Entity id
-            <input value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="e.g. spa-access" />
-          </label>
-          <label>
-            Title
-            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Spa Access" />
-          </label>
-          <button type="button" className="scope-bar__load" onClick={create} disabled={loading}>
+          <span className="scope-bar__hint">No {labelOf(DOC_TYPES, docType)} document yet.</span>
+          <button type="button" className="scope-bar__load" onClick={start} disabled={loading}>
             Start document
           </button>
         </>
