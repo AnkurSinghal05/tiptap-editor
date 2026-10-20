@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
@@ -18,8 +18,10 @@ import { ScopeLock } from "./extensions/ScopeLock";
 import { TitleLock } from "./extensions/TitleLock";
 import { ClauseMoveGuard } from "./extensions/ClauseMoveGuard";
 import { CLAUSE_ERRORS_REFRESH_META, ClauseErrors } from "./extensions/ClauseErrors";
-import { REMOTE_SYNC_META, describeScope, isPosInScope, type Scope } from "./scope";
+import { REMOTE_SYNC_META, describeScope, findScopeNode, isPosInScope, type Scope } from "./scope";
 import { WORKFLOWS, labelOf, type TaxonomyOption } from "./taxonomy";
+import { STRUCTURE_HINT, parseDocumentJson, type ImportResult, type ImportTarget } from "./importJson";
+import { forEachContainer, titleOf } from "./sync/containerKeys";
 import { generateTempClauseId } from "./utils/ids";
 import {
   captureBaseline,
@@ -41,19 +43,45 @@ import { SubSectionDialog, type NewSubSection } from "../components/SubSectionDi
 import { ScopeBar, type SubSectionsRefresh } from "../components/ScopeBar";
 import { apiLog, apiMode, kbApi } from "../api/kb";
 import { ApiLogPanel } from "../components/ApiLogPanel";
+import { DocumentJsonPanel } from "../components/DocumentJsonPanel";
 import { KbApiError } from "../api/kb/client";
+import { missingTokenHint } from "../api/kb/errors";
 import {
   KB_API_TARGET_URL,
-  KB_API_TOKEN,
   MAX_CLAUSES_PER_DELETE,
   MAX_CLAUSES_PER_REQUEST,
   PROJECT_CODE,
   setApiMode,
   type ApiMode,
 } from "../api/kb/config";
-import type { DocType } from "../api/kb/types";
+import type { DocType, KbDocument } from "../api/kb/types";
 
-type Tab = "render" | "json" | "log";
+type Tab = "render" | "json" | "requests" | "log";
+
+export interface OpenRequest extends ImportTarget {
+  // What the backend has for this vertical: its whole document, or null when
+  // there's none yet (then a new document starts).
+  document: KbDocument | null;
+  // Pasted JSON to start the new document from (only without a document).
+  json?: string;
+}
+
+// How the create flow drives the editor.
+export interface EditorHandle {
+  // Shows the vertical's document, or starts a new one. Returns what's wrong
+  // with the pasted JSON, or null once it's open. Doesn't ask about unsaved
+  // changes: the caller does.
+  open(request: OpenRequest): string[] | null;
+  checkJson(text: string, target: ImportTarget): ImportResult;
+  isDirty(): boolean;
+}
+
+interface EditorProps {
+  // False while the create flow's earlier steps are shown (the editor stays
+  // mounted, hidden).
+  active: boolean;
+  onChangeVertical: () => void;
+}
 
 type Status =
   | { kind: "idle" | "loading" | "saving" | "saved" }
@@ -73,17 +101,8 @@ const EMPTY_BASELINE: Baseline = { clauses: new Map(), containers: new Set() };
 // development token is set.
 const loadErrorStatus = (err: unknown): Status => {
   const message = err instanceof Error ? err.message : String(err);
-  const unauthorized = err instanceof KbApiError && (err.status === 401 || err.status === 403);
-  if (unauthorized && apiMode === "live" && import.meta.env.DEV && !KB_API_TOKEN) {
-    return {
-      kind: "error",
-      message,
-      problems: [
-        "No session token is set. Put it in VITE_KB_TOKEN in .env.local (not .env.example), then restart npm run dev.",
-      ],
-    };
-  }
-  return { kind: "error", message };
+  const hint = missingTokenHint(err);
+  return hint ? { kind: "error", message, problems: [hint] } : { kind: "error", message };
 };
 
 const PLACEHOLDER_DOC = {
@@ -97,7 +116,7 @@ const PLACEHOLDER_DOC = {
   ],
 };
 
-export const Editor = () => {
+export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeVertical }, ref) => {
   const [showTagsDialog, setShowTagsDialog] = useState(false);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [subSectionDialogKeys, setSubSectionDialogKeys] = useState<Set<string> | null>(null);
@@ -126,6 +145,15 @@ export const Editor = () => {
   const clauseErrorsRef = useRef(new Map<string, string[]>());
   // Scope bar refreshes, only when a save could have changed what it shows.
   const [subSectionsRefresh, setSubSectionsRefresh] = useState<SubSectionsRefresh>({});
+  // The document type and vertical the create flow opened (the scope bar
+  // narrows within it).
+  const [opened, setOpened] = useState<{ docType: DocType; entityId: string } | null>(null);
+  // Set while JSON from the JSON tab is applied: the edit guards report into
+  // it instead of showing an alert.
+  const guardRejectsRef = useRef<string[] | null>(null);
+  // Focus the editor once it's shown (it's hidden while the flow's earlier
+  // steps are on screen).
+  const focusPendingRef = useRef(false);
 
   // Ref-based callback keeps the extension's option stable while letting
   // React state setters be invoked through the closure below.
@@ -190,13 +218,16 @@ export const Editor = () => {
         },
       }),
       StructureGuard.configure({
-        onReject: (problems) => window.alert(`That change was blocked:\n\n${problems.join("\n")}`),
+        onReject: (problems) =>
+          guardRejectsRef.current
+            ? guardRejectsRef.current.push(...problems)
+            : window.alert(`That change was blocked:\n\n${problems.join("\n")}`),
       }),
       ScopeLock.configure({ getScope: () => scopeRef.current }),
       TitleLock.configure({ getLockedKeys: () => baselineRef.current.containers }),
       ClauseMoveGuard.configure({
         getBaseline: () => baselineRef.current,
-        onReject: (message) => window.alert(message),
+        onReject: (message) => (guardRejectsRef.current ? guardRejectsRef.current.push(message) : window.alert(message)),
       }),
       ClauseErrors.configure({ getErrors: () => clauseErrorsRef.current }),
       Underline,
@@ -288,18 +319,7 @@ export const Editor = () => {
         }
         return;
       }
-      const doc = editor.schema.nodeFromJSON(documents[0].doc);
-      doc.check();
-      showDocument(doc, next, { creating: false });
-      // The whole entity holds every subsection, so the scope bar reuses it.
-      if (!next.subSection) setSubSectionsRefresh({ document: documents[0] });
-
-      const problems = findStructureProblems(doc);
-      setStatus(
-        problems.length > 0
-          ? { kind: "error", message: "This document breaks the editor's structure rules:", problems }
-          : { kind: savedStatus ? "saved" : "idle" },
-      );
+      showLoaded(documents[0], next, savedStatus);
     } catch (err) {
       setStatus(loadErrorStatus(err));
     } finally {
@@ -307,28 +327,156 @@ export const Editor = () => {
     }
   };
 
-  const startCreate = (docType: DocType, entityId: string, title: string) => {
-    if (!editor || !confirmDiscard()) return;
-    const doc = editor.schema.nodeFromJSON({
-      type: "doc",
-      content: [
-        {
-          type: "section",
-          attrs: { id: entityId },
-          content: [
-            { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: title }] },
-            { type: "clause", attrs: { id: generateTempClauseId(), tags: [] }, content: [{ type: "paragraph" }] },
-          ],
-        },
-      ],
-    });
-    showDocument(doc, { docType, entityId }, { creating: true });
-    setStatus({ kind: "idle" });
-    editor.setEditable(true, false);
-    editor.commands.focus("end");
+  // Shows a document fetched from the backend (throws if it doesn't fit the
+  // editor's schema).
+  const showLoaded = (document: KbDocument, next: Scope, savedStatus: boolean) => {
+    if (!editor) return;
+    const doc = editor.schema.nodeFromJSON(document.doc);
+    doc.check();
+    showDocument(doc, next, { creating: false });
+    // The whole entity holds every subsection, so the scope bar reuses it.
+    if (!next.subSection) setSubSectionsRefresh({ known: { docType: next.docType, entityId: next.entityId, document } });
+
+    const problems = findStructureProblems(doc);
+    setStatus(
+      problems.length > 0
+        ? { kind: "error", message: "This document breaks the editor's structure rules:", problems }
+        : { kind: savedStatus ? "saved" : "idle" },
+    );
   };
 
+  const focusWhenShown = () => {
+    if (active) editor?.commands.focus("end");
+    else focusPendingRef.current = true;
+  };
+
+  useEffect(() => {
+    if (!active || !focusPendingRef.current || !editor) return;
+    focusPendingRef.current = false;
+    editor.commands.focus("end");
+  }, [active, editor]);
+
+  // A new document: from pasted JSON, or a title and one empty clause.
+  const startCreate = (docType: DocType, entityId: string, title: string, from?: PMNode) => {
+    if (!editor) return;
+    const doc =
+      from ??
+      editor.schema.nodeFromJSON({
+        type: "doc",
+        content: [
+          {
+            type: "section",
+            attrs: { id: entityId },
+            content: [
+              { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: title }] },
+              { type: "clause", attrs: { id: generateTempClauseId(), tags: [] }, content: [{ type: "paragraph" }] },
+            ],
+          },
+        ],
+      });
+    showDocument(doc, { docType, entityId }, { creating: true });
+    setSubSectionsRefresh({ known: { docType, entityId, document: null } });
+    setStatus({ kind: "idle" });
+    editor.setEditable(true, false);
+    focusWhenShown();
+  };
+
+  useImperativeHandle(ref, () => ({
+    open: (request) => {
+      if (!editor) return ["The editor isn't ready yet. Try again in a moment."];
+      const target = { docType: request.docType, entityId: request.entityId };
+      let from: PMNode | undefined;
+      if (!request.document && request.json?.trim()) {
+        const parsed = parseDocumentJson(request.json, request, editor.schema);
+        if (!parsed.ok) return parsed.errors;
+        from = parsed.doc;
+      }
+      if (request.document) {
+        try {
+          showLoaded(request.document, target, false);
+        } catch (err) {
+          return [`This document can't be shown: ${err instanceof Error ? err.message : String(err)}`];
+        }
+        editor.setEditable(true, false);
+        focusWhenShown();
+      } else {
+        startCreate(request.docType, request.entityId, request.title, from);
+      }
+      setOpened(target);
+      setActiveTab("render");
+      return null;
+    },
+    checkJson: (text, target) =>
+      editor ? parseDocumentJson(text, target, editor.schema) : { ok: false, errors: ["The editor isn't ready yet."] },
+    // A new, unsaved document counts as one pending change.
+    isDirty: () => pendingChanges > 0,
+  }));
+
   if (!editor) return null;
+
+  // Applies the JSON tab's edits as an ordinary edit: only the range that
+  // changed is replaced, so the edit guards judge it and undo reverts it.
+  // Returns what stopped it, or null once applied.
+  const applyDocumentJson = (text: string): string[] | null => {
+    const current = scopeRef.current;
+    if (!current || !editor.isEditable) return ["Nothing can be edited right now."];
+    let next: PMNode;
+    try {
+      next = editor.schema.nodeFromJSON(JSON.parse(text));
+      next.check();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return err instanceof SyntaxError
+        ? [`Not valid JSON: ${message}`]
+        : [`It doesn't fit the document structure: ${message}`, STRUCTURE_HINT];
+    }
+
+    const old = editor.state.doc;
+    const start = old.content.findDiffStart(next.content);
+    if (start === null) return ["Nothing to apply: the JSON matches the editor."];
+    let { a: endA, b: endB } = old.content.findDiffEnd(next.content)!;
+    const overlap = start - Math.min(endA, endB);
+    if (overlap > 0) {
+      endA += overlap;
+      endB += overlap;
+    }
+
+    // Two guards reject without saying why, so check their rules first.
+    const problems: string[] = [];
+    const found = findScopeNode(old, current);
+    if (found && (start <= found.root.pos || endA >= found.root.pos + found.root.node.nodeSize)) {
+      problems.push(
+        current.subSection
+          ? "Only the loaded subsection or workflow can change. Everything around it is shown for context."
+          : "The section itself (the vertical's id) can't change, only what's inside it.",
+      );
+    }
+    const savedTitles = new Map<string, string>();
+    forEachContainer(old, ({ node, key }) => baselineRef.current.containers.has(key) && savedTitles.set(key, titleOf(node)));
+    forEachContainer(next, ({ node, key }) => {
+      const before = savedTitles.get(key);
+      if (before !== undefined && before !== titleOf(node)) {
+        problems.push(`Saved titles can't be renamed: "${before}" stays "${before}", not "${titleOf(node)}".`);
+      }
+    });
+    if (problems.length > 0) return problems;
+
+    const rejected: string[] = [];
+    guardRejectsRef.current = rejected;
+    try {
+      editor.view.dispatch(editor.state.tr.replace(start, endA, next.slice(start, endB)));
+    } catch (err) {
+      return [`Couldn't apply it: ${err instanceof Error ? err.message : String(err)}`];
+    } finally {
+      guardRejectsRef.current = null;
+    }
+    // New clauses get their ids rewritten right after, so compare with the
+    // old document, not the JSON.
+    if (editor.state.doc.eq(old)) {
+      return rejected.length > 0 ? rejected : ["The editor's rules blocked this change."];
+    }
+    return null;
+  };
 
   const setClauseErrors = (errors: Map<string, string[]>) => {
     clauseErrorsRef.current = errors;
@@ -588,10 +736,14 @@ export const Editor = () => {
   return (
     <>
       <ScopeBar
+        docType={opened?.docType ?? null}
+        entityId={opened?.entityId ?? null}
+        creating={creating}
         loading={busy}
         subSectionsRefresh={subSectionsRefresh}
         onLoad={(next) => void loadScope(next)}
-        onCreate={startCreate}
+        onCreate={(docType, entityId, title) => confirmDiscard() && startCreate(docType, entityId, title)}
+        onChangeVertical={onChangeVertical}
       />
 
       <div className="workspace">
@@ -684,6 +836,13 @@ export const Editor = () => {
               className={activeTab === "json" ? "tab tab--active" : "tab"}
               onClick={() => setActiveTab("json")}
             >
+              JSON
+            </button>
+            <button
+              type="button"
+              className={activeTab === "requests" ? "tab tab--active" : "tab"}
+              onClick={() => setActiveTab("requests")}
+            >
               Pending requests
             </button>
             <button
@@ -699,6 +858,13 @@ export const Editor = () => {
             <div className="panel-body render-surface" dangerouslySetInnerHTML={{ __html: html }} />
           )}
           {activeTab === "json" && (
+            <DocumentJsonPanel
+              doc={editor.state.doc}
+              editable={!!scope && !busy && !needsReloadRef.current}
+              onApply={applyDocumentJson}
+            />
+          )}
+          {activeTab === "requests" && (
             <textarea className="panel-body json-surface" value={payload} readOnly spellCheck={false} />
           )}
           {activeTab === "log" && <ApiLogPanel log={apiLog} />}
@@ -732,4 +898,6 @@ export const Editor = () => {
       />
     </>
   );
-};
+});
+
+Editor.displayName = "Editor";

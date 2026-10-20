@@ -8,25 +8,31 @@ import {
   ENTITIES,
   SUBSECTION_TYPES,
   WORKFLOWS,
+  isOneOf,
   labelOf,
-  type EntityId,
   type SubSectionType,
   type WorkflowId,
 } from "../editor/taxonomy";
 
 // A new object refreshes what the scope bar knows about the chosen entity
-// (whether it has a document, and its subsections): from `document` (an
-// entity's whole document, just loaded from the backend) when it's for the
-// chosen entity, otherwise by fetching it.
+// (whether it has a document, and its subsections): from `known` (what the
+// backend just returned for an entity: its whole document, or null for none)
+// when it's for the chosen entity, otherwise by fetching it.
 export interface SubSectionsRefresh {
-  document?: KbDocument;
+  known?: { docType: DocType; entityId: string; document: KbDocument | null };
 }
 
 interface ScopeBarProps {
+  // The document type and vertical (entity) chosen in the create flow.
+  docType: DocType | null;
+  entityId: string | null;
+  // A new document that isn't saved yet is open.
+  creating: boolean;
   loading: boolean;
   subSectionsRefresh: SubSectionsRefresh;
   onLoad: (scope: Scope) => void;
   onCreate: (docType: DocType, entityId: string, title: string) => void;
+  onChangeVertical: () => void;
 }
 
 interface SubSectionOption {
@@ -51,13 +57,20 @@ const subSectionsOf = (d: KbDocument | undefined): SubSectionOption[] =>
       workflows: (n.content ?? []).filter((w) => w.type === "workflow").map((w) => w.attrs!.id as WorkflowId),
     }));
 
-// Filters for what to load: document type and entity (required) →
-// subsection (optional) → workflow (optional, only once a subsection is chosen).
-// Entities come from a fixed list; one without a document of the chosen type
-// offers to start one instead.
-export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: ScopeBarProps) => {
-  const [docType, setDocType] = useState<DocType>(DOC_TYPES[0].value);
-  const [entityId, setEntityId] = useState<EntityId | "">("");
+// What to load within the document the create flow opened: the whole
+// vertical, or a subsection (optional) → workflow (optional, only once a
+// subsection is chosen). A vertical without a document of this type offers
+// to start one.
+export const ScopeBar = ({
+  docType,
+  entityId,
+  creating,
+  loading,
+  subSectionsRefresh,
+  onLoad,
+  onCreate,
+  onChangeVertical,
+}: ScopeBarProps) => {
   // null until known (no entity chosen, still fetching, or the fetch failed).
   const [hasDocument, setHasDocument] = useState<boolean | null>(null);
   const [subSections, setSubSections] = useState<SubSectionOption[]>([]);
@@ -71,7 +84,7 @@ export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: Scop
     setError(null);
     setHasDocument(null);
     setSubSections([]);
-    if (!entityId) return;
+    if (!docType || !entityId) return;
     const show = (d: KbDocument | undefined) => {
       const subs = subSectionsOf(d);
       setHasDocument(!!d);
@@ -79,9 +92,9 @@ export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: Scop
       setSelectedSub((current) => (subs.some((s) => subKey(s) === current) ? current : ""));
     };
     // The editor just loaded this entity: no need to fetch it again.
-    const loaded = subSectionsRefresh.document;
-    if (loaded && loaded.type === docType && sectionOf(loaded)?.attrs?.id === entityId) {
-      show(loaded);
+    const known = subSectionsRefresh.known;
+    if (known && known.docType === docType && known.entityId === entityId) {
+      show(known.document ?? undefined);
       return;
     }
     let cancelled = false;
@@ -101,8 +114,9 @@ export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: Scop
 
   const sub = subSections.find((s) => subKey(s) === selectedSub);
 
+  if (!docType || !entityId) return null;
+
   const load = () => {
-    if (!entityId) return;
     onLoad({
       docType,
       entityId,
@@ -111,53 +125,30 @@ export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: Scop
     });
   };
 
-  // The entity's name becomes the title (editable until the first save).
-  const start = () => {
-    if (entityId) onCreate(docType, entityId, labelOf(ENTITIES, entityId));
-  };
+  const verticalName = isOneOf(ENTITIES, entityId) ? labelOf(ENTITIES, entityId) : entityId;
+  // The vertical's name becomes the title (editable until the first save).
+  const start = () => onCreate(docType, entityId, verticalName);
 
   return (
     <div className="scope-bar">
-      <label>
-        Document
-        <select
-          value={docType}
-          onChange={(e) => {
-            setDocType(e.target.value as DocType);
-            setSelectedSub("");
-            setWorkflow("");
-          }}
-        >
-          {DOC_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="scope-bar__field">
+        <span className="scope-bar__label">Document</span>
+        <span className="scope-bar__value">{labelOf(DOC_TYPES, docType)}</span>
+      </div>
 
-      <label>
-        Entity
-        <select
-          value={entityId}
-          onChange={(e) => {
-            setEntityId(e.target.value as EntityId);
-            setSelectedSub("");
-            setWorkflow("");
-          }}
-        >
-          <option value="" disabled>
-            Choose an entity…
-          </option>
-          {ENTITIES.map((e) => (
-            <option key={e.value} value={e.value}>
-              {e.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="scope-bar__field">
+        <span className="scope-bar__label">Vertical</span>
+        <span className="scope-bar__value">
+          {verticalName}
+          <button type="button" className="scope-bar__change" onClick={onChangeVertical}>
+            Change
+          </button>
+        </span>
+      </div>
 
-      {hasDocument === false ? (
+      {creating ? (
+        <span className="scope-bar__hint">New document: Create document saves it.</span>
+      ) : hasDocument === false ? (
         <>
           <span className="scope-bar__hint">No {labelOf(DOC_TYPES, docType)} document yet.</span>
           <button type="button" className="scope-bar__load" onClick={start} disabled={loading}>
@@ -208,7 +199,7 @@ export const ScopeBar = ({ loading, subSectionsRefresh, onLoad, onCreate }: Scop
             </select>
           </label>
 
-          <button type="button" className="scope-bar__load" onClick={load} disabled={loading || !entityId}>
+          <button type="button" className="scope-bar__load" onClick={load} disabled={loading}>
             {loading ? "Loading…" : "Load"}
           </button>
         </>
