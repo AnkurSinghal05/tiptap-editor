@@ -60,7 +60,7 @@ The function only forwards Knowledge Base endpoints (`/knowledge-base…`) with 
 
 Set it up in this order:
 
-1. **Protect the deployment first.** Anyone who can open it can edit the base T&C with the token. In the project's **Settings → Deployment Protection**, enable **Vercel Authentication** with **All Deployments** (free on every plan). Standard Protection leaves the production domain public.
+1. **Protect the deployment first.** Anyone who can open it can edit the base T&C with the token. In the project's **Settings → Deployment Protection**, enable **Vercel Authentication** with **All Deployments** (free on every plan). Standard Protection leaves the production domain public. To let people in without a Vercel account, create a **Shareable Link**: open the production deployment, click **Share**, choose **Anyone with the link** and copy the link (revoke it by switching back to **Only people with access**). Hobby accounts get one shareable link in total.
 2. **Add the token as a Secret** (Settings → Environment Variables, type **Secret**), or in your own terminal: `vercel env add KB_API_TOKEN production --sensitive`. Use a name without the `VITE_` prefix: `VITE_*` values are built into the public JavaScript.
 3. **Add the Config variables:**
 
