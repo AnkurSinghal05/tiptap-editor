@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
-import { MdArrowBack, MdArrowForward, MdCheckCircle, MdSearch } from "react-icons/md";
+import { MdArrowBack, MdArrowForward, MdCheckCircle, MdOutlineFileUpload, MdSearch } from "react-icons/md";
 import { kbApi } from "../../api/kb";
 import { KbApiError } from "../../api/kb/client";
 import { missingTokenHint } from "../../api/kb/errors";
 import { DOC_TYPES, type DocType, type KbDocument } from "../../api/kb/types";
 import type { OpenRequest } from "../../editor/Editor";
+import { ACCEPTED_FILES, type FileImport } from "../../editor/importFile";
 import type { ImportResult, ImportTarget } from "../../editor/importJson";
 import { ENTITIES, labelOf, type EntityId } from "../../editor/taxonomy";
 import { shortTypeLabel } from "./TypeStep";
@@ -16,6 +17,14 @@ type Check =
   | { state: "ready"; document: KbDocument | null }
   | { state: "error"; message: string; hint: string | null };
 
+type Start = "blank" | "file" | "json";
+
+type FileState =
+  | { state: "none" }
+  | { state: "reading"; name: string }
+  | { state: "ready"; result: FileImport }
+  | { state: "error"; name: string; message: string };
+
 interface VerticalStepProps {
   docType: DocType;
   value: EntityId | null;
@@ -25,20 +34,33 @@ interface VerticalStepProps {
   // by the user).
   onOpen: (request: OpenRequest) => string[] | null;
   checkJson: (text: string, target: ImportTarget) => ImportResult;
+  readFile: (file: File) => Promise<FileImport>;
 }
 
 const countClauses = (node: JSONContent): number =>
   node.type === "clause" ? 1 : (node.content ?? []).reduce((n, c) => n + countClauses(c), 0);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// Inline text joins as is, list items with a dot, other blocks with a space.
+const textOf = (n: JSONContent): string =>
+  n.text ??
+  (n.content ?? [])
+    .map(textOf)
+    .join(n.type === "paragraph" ? "" : n.type === "bulletList" || n.type === "orderedList" ? " · " : " ");
+const PREVIEW_CLAUSES = 5;
 
 // Step 2: which vertical (entity), and how to start when it has no document.
-export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJson }: VerticalStepProps) => {
+export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJson, readFile }: VerticalStepProps) => {
   const [query, setQuery] = useState("");
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [retry, setRetry] = useState(0);
-  const [fromJson, setFromJson] = useState(false);
+  const [start, setStart] = useState<Start>("blank");
   const [json, setJson] = useState("");
+  const [file, setFile] = useState<FileState>({ state: "none" });
+  const [dragging, setDragging] = useState(false);
   const [openErrors, setOpenErrors] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // The latest file chosen, so a slower earlier read can't overwrite it.
+  const readSeqRef = useRef(0);
 
   // One request for the chosen vertical: its whole document, which the editor
   // then shows without fetching it again.
@@ -77,16 +99,40 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
   const short = shortTypeLabel(docType);
   const name = value ? labelOf(ENTITIES, value) : "";
   const document = check.state === "ready" ? check.document : undefined;
-  const pasting = document === null && fromJson && json.trim() !== "";
+  const pasting = document === null && start === "json" && json.trim() !== "";
   const jsonCheck = useMemo(
     () => (pasting && value ? checkJson(json, { docType, entityId: value, title: labelOf(ENTITIES, value) }) : null),
     [pasting, json, docType, value, checkJson],
   );
-  const canOpen = document !== undefined && (!(document === null && fromJson) || jsonCheck?.ok === true);
+  const canOpen =
+    document !== undefined &&
+    (document !== null ||
+      start === "blank" ||
+      (start === "json" && jsonCheck?.ok === true) ||
+      (start === "file" && file.state === "ready"));
+
+  const chooseFile = (chosen: File | undefined) => {
+    if (!chosen) return;
+    const seq = ++readSeqRef.current;
+    setOpenErrors([]);
+    setFile({ state: "reading", name: chosen.name });
+    readFile(chosen).then(
+      (result) => seq === readSeqRef.current && setFile({ state: "ready", result }),
+      (err: unknown) =>
+        seq === readSeqRef.current &&
+        setFile({ state: "error", name: chosen.name, message: err instanceof Error ? err.message : String(err) }),
+    );
+  };
 
   const open = () => {
     if (!value || document === undefined) return;
-    const errors = onOpen({ docType, entityId: value, title: name, document, json: pasting ? json : undefined });
+    const source =
+      document === null && start === "json" && pasting
+        ? json
+        : document === null && start === "file" && file.state === "ready"
+          ? JSON.stringify({ type: docType, doc: file.result.doc })
+          : undefined;
+    const errors = onOpen({ docType, entityId: value, title: name, document, json: source });
     setOpenErrors(errors ?? []);
   };
 
@@ -102,6 +148,15 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
         return { kind: "loading", text: "Checking…" };
     }
   };
+
+  const openLabel = document
+    ? "Open editor"
+    : document === null
+      ? { blank: "Start blank document", file: "Start from file", json: "Start from JSON" }[start]
+      : "Open editor";
+
+  const fileResult = file.state === "ready" ? file.result : null;
+  const previewClauses = (fileResult?.doc.content?.[0]?.content ?? []).slice(0, PREVIEW_CLAUSES);
 
   return (
     <section className="flow-card" aria-labelledby="vertical-step-title">
@@ -185,16 +240,104 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
             {name} has no {typeName} document yet. How do you want to start?
           </p>
           <div className="flow-start__options" role="radiogroup" aria-label="How to start">
-            <label>
-              <input type="radio" name="start" checked={!fromJson} onChange={() => setFromJson(false)} />
-              Blank document
-            </label>
-            <label>
-              <input type="radio" name="start" checked={fromJson} onChange={() => setFromJson(true)} />
-              From JSON
-            </label>
+            {(
+              [
+                ["blank", "Blank document"],
+                ["file", "From a file"],
+                ["json", "From JSON"],
+              ] as const
+            ).map(([option, label]) => (
+              <label key={option}>
+                <input type="radio" name="start" checked={start === option} onChange={() => setStart(option)} />
+                {label}
+              </label>
+            ))}
           </div>
-          {fromJson && (
+
+          {start === "file" && (
+            <>
+              <div
+                className={dragging ? "flow-drop flow-drop--over" : "flow-drop"}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  chooseFile(e.dataTransfer.files[0]);
+                }}
+              >
+                <span className="flow-drop__icon">
+                  <MdOutlineFileUpload aria-hidden />
+                </span>
+                <span className="flow-drop__text">
+                  <strong>{file.state === "none" ? "Drag and drop a file here, or browse" : "Drop another file to replace it"}</strong>
+                  <span>PDF, DOCX or TXT · up to 10 MB · one file</span>
+                </span>
+                <button type="button" className="flow-secondary" onClick={() => fileInputRef.current?.click()}>
+                  Browse files
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_FILES}
+                  hidden
+                  onChange={(e) => {
+                    chooseFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <p className="flow-note">
+                The file is read in your browser and isn't sent anywhere until you create the document. Each paragraph
+                becomes a clause, a list joins the paragraph before it, and headings become tags on the clauses below
+                them. Everything goes directly under {name}; subsections can be added in the editor.
+              </p>
+
+              {file.state === "reading" && <div className="flow-callout flow-callout--info">Reading {file.name}…</div>}
+              {file.state === "error" && (
+                <div className="flow-callout flow-callout--error" role="alert">
+                  {file.name}: {file.message}
+                </div>
+              )}
+              {fileResult && (
+                <div className="flow-callout flow-callout--ok">
+                  <div>
+                    <strong>{fileResult.fileName}</strong>: {plural(fileResult.clauses, "clause")}. You can review and
+                    change them in the editor before creating the document.
+                  </div>
+                  <ul>
+                    {fileResult.tags.length > 0 && (
+                      <li>
+                        Headings became tags:{" "}
+                        {fileResult.tags.map((t) => `${t.heading} → ${t.tag} (${t.clauses})`).join(", ")}.
+                      </li>
+                    )}
+                    {fileResult.title && <li>Left out the title line “{fileResult.title}”: the title is {name}.</li>}
+                    {fileResult.imagesSkipped > 0 && <li>Left out {plural(fileResult.imagesSkipped, "image")}.</li>}
+                  </ul>
+                  <ol className="flow-preview">
+                    {previewClauses.map((c, i) => (
+                      <li key={i}>
+                        {(c.attrs?.tags as string[] | undefined)?.length ? (
+                          <span className="flow-preview__tags">{(c.attrs!.tags as string[]).join(", ")}</span>
+                        ) : null}
+                        {textOf(c).slice(0, 160)}
+                        {textOf(c).length > 160 ? "…" : ""}
+                      </li>
+                    ))}
+                  </ol>
+                  {fileResult.clauses > PREVIEW_CLAUSES && (
+                    <div className="flow-preview__more">and {plural(fileResult.clauses - PREVIEW_CLAUSES, "more clause")}</div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {start === "json" && (
             <>
               <textarea
                 className="flow-json"
@@ -254,8 +397,7 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
           <MdArrowBack aria-hidden /> Back
         </button>
         <button type="button" className="flow-primary" onClick={open} disabled={!canOpen}>
-          {document ? "Open editor" : document === null ? (fromJson ? "Start from JSON" : "Start blank document") : "Open editor"}{" "}
-          <MdArrowForward aria-hidden />
+          {openLabel} <MdArrowForward aria-hidden />
         </button>
       </div>
     </section>

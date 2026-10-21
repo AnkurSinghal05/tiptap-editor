@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Editor, type EditorHandle, type OpenRequest } from "./editor/Editor";
 import type { ImportResult, ImportTarget } from "./editor/importJson";
+import type { FileImport } from "./editor/importFile";
 import { ENTITIES, labelOf, type EntityId } from "./editor/taxonomy";
 import { DOC_TYPES, type DocType } from "./api/kb/types";
 import { Stepper, type StepInfo } from "./components/flow/Stepper";
@@ -51,6 +52,11 @@ export const App = () => {
       editorRef.current?.checkJson(text, target) ?? { ok: false, errors: ["The editor isn't ready yet."] },
     [],
   );
+  const readFile = useCallback(
+    (file: File): Promise<FileImport> =>
+      editorRef.current?.readFile(file) ?? Promise.reject(new Error("The editor isn't ready yet.")),
+    [],
+  );
 
   return (
     <div className="app">
@@ -70,6 +76,7 @@ export const App = () => {
           onBack={() => setStep("type")}
           onOpen={open}
           checkJson={checkJson}
+          readFile={readFile}
         />
       )}
 

@@ -21,6 +21,7 @@ import { CLAUSE_ERRORS_REFRESH_META, ClauseErrors } from "./extensions/ClauseErr
 import { REMOTE_SYNC_META, describeScope, findScopeNode, isPosInScope, type Scope } from "./scope";
 import { WORKFLOWS, labelOf, type TaxonomyOption } from "./taxonomy";
 import { STRUCTURE_HINT, parseDocumentJson, type ImportResult, type ImportTarget } from "./importJson";
+import { readDocumentFile, type FileImport } from "./importFile";
 import { forEachContainer, titleOf } from "./sync/containerKeys";
 import { generateTempClauseId } from "./utils/ids";
 import {
@@ -73,6 +74,8 @@ export interface EditorHandle {
   // changes: the caller does.
   open(request: OpenRequest): string[] | null;
   checkJson(text: string, target: ImportTarget): ImportResult;
+  // Splits a PDF, DOCX or TXT file into clauses (rejects with a readable message).
+  readFile(file: File): Promise<FileImport>;
   isDirty(): boolean;
 }
 
@@ -408,6 +411,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
     },
     checkJson: (text, target) =>
       editor ? parseDocumentJson(text, target, editor.schema) : { ok: false, errors: ["The editor isn't ready yet."] },
+    readFile: (file) =>
+      editor ? readDocumentFile(file, editor.schema) : Promise.reject(new Error("The editor isn't ready yet.")),
     // A new, unsaved document counts as one pending change.
     isDirty: () => pendingChanges > 0,
   }));
