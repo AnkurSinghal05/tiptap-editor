@@ -1,7 +1,5 @@
 import { Fragment, useEffect, useState, useSyncExternalStore } from "react";
 import type { ApiLog, ApiLogEntry } from "../api/kb/apiLog";
-import { apiMode } from "../api/kb";
-import { KB_API_TARGET_URL } from "../api/kb/config";
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 
@@ -13,13 +11,21 @@ const splitPath = (path: string) => {
   return i === -1 ? { pathname: path, search: "" } : { pathname: path.slice(0, i), search: path.slice(i + 1) };
 };
 
-// The full path, with the query string muted and line breaks allowed between
-// parameters, so long URLs wrap instead of being cut off.
+// The full URL, with the host and query string muted and line breaks allowed
+// after the host and between parameters, so long URLs wrap instead of being
+// cut off.
 const PathText = ({ path }: { path: string }) => {
-  const { pathname, search } = splitPath(path);
+  const host = /^https?:\/\/[^/]+/.exec(path)?.[0] ?? "";
+  const { pathname, search } = splitPath(path.slice(host.length));
   const params = search ? search.split("&") : [];
   return (
     <span className="api-log__path">
+      {host && (
+        <>
+          <span className="api-log__host">{host}</span>
+          <wbr />
+        </>
+      )}
       {pathname}
       {params.map((param, i) => (
         <Fragment key={i}>
@@ -58,6 +64,22 @@ const CopyButton = ({ text, label }: { text: string; label: string }) => {
   );
 };
 
+// Where the request went: the API URL it reached, else what the browser asked for.
+const shownUrl = (entry: ApiLogEntry) => entry.endpoint ?? (entry.via === "mock" ? entry.path : entry.requestUrl);
+
+const routeNote = (entry: ApiLogEntry) => {
+  switch (entry.via) {
+    case "mock":
+      return "Answered by the mock backend in the browser; nothing was sent.";
+    case "direct":
+      return "Sent straight from the browser to the API.";
+    default:
+      return entry.endpoint
+        ? `Sent to ${splitPath(entry.requestUrl).pathname} on this site, which forwarded it to the API.`
+        : `Sent to ${splitPath(entry.requestUrl).pathname} on this site, which didn't forward it to the API (see the response).`;
+  }
+};
+
 const EntryRow = ({ entry }: { entry: ApiLogEntry }) => {
   const [open, setOpen] = useState(false);
   const { search } = splitPath(entry.path);
@@ -65,7 +87,7 @@ const EntryRow = ({ entry }: { entry: ApiLogEntry }) => {
     <details className="api-log__entry" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
         <span className={`api-log__method api-log__method--${entry.method.toLowerCase()}`}>{entry.method}</span>
-        <PathText path={entry.path} />
+        <PathText path={shownUrl(entry)} />
         <span className={`api-log__status ${statusClass(entry.status)}`}>{entry.status || "no response"}</span>
         <span className="api-log__meta">
           {entry.durationMs} ms · {new Date(entry.at).toLocaleTimeString()}
@@ -75,8 +97,8 @@ const EntryRow = ({ entry }: { entry: ApiLogEntry }) => {
       {open && (
         <div className="api-log__body">
           <div className="api-log__actions">
-            {/* Live: the API's own URL (not the dev proxy). Mock: just the path. */}
-            <CopyButton text={apiMode === "live" ? `${KB_API_TARGET_URL}${entry.path}` : entry.path} label="Copy URL" />
+            <span className="api-log__route">{routeNote(entry)}</span>
+            <CopyButton text={shownUrl(entry)} label="Copy URL" />
           </div>
           {search && (
             <>

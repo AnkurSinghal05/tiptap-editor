@@ -58,6 +58,9 @@ export const createHttpKbApi = (opts: {
   onExchange?: (exchange: KbExchange) => void;
 }): KbApi => {
   const base = opts.baseUrl.replace(/\/$/, "");
+  // A relative base is the app's own /kb-api proxy, which reports where it
+  // forwarded each call in this header.
+  const via = /^https?:\/\//.test(base) ? "direct" : "proxy";
 
   const request = async <T>(route: KbRoute): Promise<Envelope<T>> => {
     const headers: Record<string, string> = { "Project-Code": opts.projectCode };
@@ -66,9 +69,11 @@ export const createHttpKbApi = (opts: {
 
     const at = new Date().toISOString();
     const startedAt = performance.now();
+    const requestUrl = `${base}${route.path}`;
+    const where = { via, requestUrl, endpoint: via === "direct" ? requestUrl : undefined } as const;
     let res: Response;
     try {
-      res = await fetch(`${base}${route.path}`, {
+      res = await fetch(requestUrl, {
         method: route.method,
         credentials: "include",
         headers,
@@ -76,7 +81,7 @@ export const createHttpKbApi = (opts: {
       });
     } catch {
       const message = "Could not reach the knowledge base service.";
-      opts.onExchange?.({ route, status: 0, response: { error: message, note: "No response from the server." }, startedAt, at });
+      opts.onExchange?.({ route, ...where, status: 0, response: { error: message, note: "No response from the server." }, startedAt, at });
       throw new KbApiError(0, message);
     }
 
@@ -90,7 +95,8 @@ export const createHttpKbApi = (opts: {
     } catch {
       // non-JSON body
     }
-    opts.onExchange?.({ route, status: res.status, response: raw, startedAt, at });
+    const endpoint = where.endpoint ?? res.headers.get("x-kb-upstream-url") ?? undefined;
+    opts.onExchange?.({ route, ...where, endpoint, status: res.status, response: raw, startedAt, at });
     if (!res.ok) {
       throw new KbApiError(res.status, body.message ?? `Request failed (${res.status}).`, body.errors ?? []);
     }

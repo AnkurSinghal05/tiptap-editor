@@ -20,10 +20,16 @@ const METHODS = new Set(["GET", "POST", "PATCH"]);
 // own Authorization never are.
 const FORWARDED_HEADERS = ["project-code", "content-type", "accept"];
 const TIMEOUT_MS = 25_000;
+// Tells the editor which API URL a call was forwarded to (shown in its API
+// log). Absent when the call wasn't forwarded.
+const UPSTREAM_HEADER = "x-kb-upstream-url";
 
 // Same envelope as the API's errors, so the editor shows the message.
-const fail = (code: number, message: string) =>
-  Response.json({ message, code }, { status: code, headers: { "cache-control": "no-store" } });
+const fail = (code: number, message: string, upstream?: string) =>
+  Response.json(
+    { message, code },
+    { status: code, headers: { "cache-control": "no-store", ...(upstream && { [UPSTREAM_HEADER]: upstream }) } },
+  );
 
 export default {
   async fetch(request: Request): Promise<Response> {
@@ -64,12 +70,12 @@ export default {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch {
-      return fail(502, "Couldn't reach the Knowledge Base API.");
+      return fail(502, "Couldn't reach the Knowledge Base API.", target);
     }
 
     // fetch has already decoded the body, so content-encoding and
     // content-length aren't passed back (nor any set-cookie).
-    const out = new Headers({ "cache-control": "no-store" });
+    const out = new Headers({ "cache-control": "no-store", [UPSTREAM_HEADER]: target });
     const type = upstream.headers.get("content-type");
     if (type) out.set("content-type", type);
     return new Response(upstream.body, { status: upstream.status, headers: out });

@@ -28,6 +28,11 @@ export default defineConfig(({ mode }) => {
           configure: (proxy) => {
             // Present the request as server-to-server.
             proxy.on("proxyReq", (proxyReq) => proxyReq.removeHeader("origin"));
+            // Tell the app which API URL the call went to (shown in its API
+            // log, like api/kb-proxy.ts does on Vercel). req.url is rewritten.
+            proxy.on("proxyRes", (proxyRes, req) => {
+              proxyRes.headers["x-kb-upstream-url"] = `${origin}${req.url}`;
+            });
           },
         },
       },

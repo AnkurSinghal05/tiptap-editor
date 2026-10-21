@@ -12,6 +12,16 @@ export interface ApiLogEntry {
   at: string;
   method: KbRoute["method"];
   path: string;
+  // How the call left the browser: straight to the API ("direct"), through
+  // /kb-api on the app's own server ("proxy"), or answered by the in-browser
+  // mock ("mock").
+  via: "direct" | "proxy" | "mock";
+  // The URL the browser requested (/kb-api/… through the proxy).
+  requestUrl: string;
+  // The API URL the call actually reached: the request URL for direct calls,
+  // what the proxy reported for proxied ones. Absent for the mock, and when
+  // the proxy didn't forward the call.
+  endpoint?: string;
   headers: Record<string, string>;
   requestBody?: unknown;
   // 0 when there was no response (network error).
@@ -33,6 +43,17 @@ export type ApiLogWriter = ReturnType<typeof createApiLog>;
 // One request and its outcome, as seen by whoever made the call.
 export interface KbExchange {
   route: KbRoute;
+  // How the call left the browser: straight to the API ("direct"), through
+  // /kb-api on the app's own server ("proxy"), or answered by the in-browser
+  // mock ("mock").
+  via: "direct" | "proxy" | "mock";
+  // The URL the browser requested (/kb-api/… through the proxy).
+  requestUrl: string;
+  // The API URL the call actually reached: the request URL for direct calls,
+  // what the proxy reported for proxied ones. Absent for the mock, and when
+  // the proxy didn't forward the call.
+  endpoint?: string;
+
   // 0 when there was no response (network error).
   status: number;
   response: unknown;
@@ -75,6 +96,9 @@ export const logExchange = (log: ApiLogWriter, label: string, x: KbExchange) => 
     at: x.at,
     method: x.route.method,
     path: x.route.path,
+    via: x.via,
+    requestUrl: x.requestUrl,
+    endpoint: x.endpoint,
     headers: { "Project-Code": PROJECT_CODE },
     requestBody: snapshot(x.route.body),
     status: x.status,
@@ -82,7 +106,8 @@ export const logExchange = (log: ApiLogWriter, label: string, x: KbExchange) => 
     durationMs: Math.round(performance.now() - x.startedAt),
   };
   log.add(entry);
-  console.debug(`[${label}] ${entry.method} ${entry.path} → ${entry.status || "no response"}`, entry);
+  const where = entry.endpoint ?? (entry.via === "mock" ? `${entry.path} (mock)` : `${entry.requestUrl} (not forwarded)`);
+  console.debug(`[${label}] ${entry.method} ${where} → ${entry.status || "no response"}`, entry);
 };
 
 // Wraps an API (the mock) so every call is recorded in `log`.
@@ -93,7 +118,7 @@ export const withApiLog = (api: KbApi, log: ApiLogWriter, label = "kb api"): KbA
     try {
       const result = await call();
       const envelope = toEnvelope(result);
-      logExchange(log, label, { route, status: envelope.code, response: envelope, startedAt, at });
+      logExchange(log, label, { route, via: "mock", requestUrl: route.path, status: envelope.code, response: envelope, startedAt, at });
       return result;
     } catch (err) {
       const status = err instanceof KbApiError ? err.status : 0;
@@ -106,7 +131,7 @@ export const withApiLog = (api: KbApi, log: ApiLogWriter, label = "kb api"): KbA
               code: status,
               ...(err instanceof KbApiError && err.fieldErrors.length > 0 && { errors: err.fieldErrors }),
             };
-      logExchange(log, label, { route, status, response, startedAt, at });
+      logExchange(log, label, { route, via: "mock", requestUrl: route.path, status, response, startedAt, at });
       throw err;
     }
   };
