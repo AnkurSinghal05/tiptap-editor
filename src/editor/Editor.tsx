@@ -4,6 +4,10 @@ import { StarterKit } from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 import { Image } from "@tiptap/extension-image";
 import { TextAlign } from "@tiptap/extension-text-align";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 import { EditorState } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
@@ -236,6 +240,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       Underline,
       Image,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      // Tables are blocks, so a clause can hold one (the API stores clause
+      // content as sent). No column resizing: it adds widths to the JSON.
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: PLACEHOLDER_DOC,
     onUpdate: ({ editor }) => refreshDerived(editor.state.doc, editor.getHTML()),

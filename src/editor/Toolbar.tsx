@@ -18,7 +18,15 @@ import {
   MdCreateNewFolder,
   MdAltRoute,
 } from "react-icons/md";
-import { RiCodeBoxLine } from "react-icons/ri";
+import {
+  RiCodeBoxLine,
+  RiDeleteBin6Line,
+  RiDeleteColumn,
+  RiDeleteRow,
+  RiInsertColumnRight,
+  RiInsertRowBottom,
+  RiTableLine,
+} from "react-icons/ri";
 
 type BtnProps = {
   onClick: () => void;
@@ -207,6 +215,52 @@ export const Toolbar = ({
         title="Hard break"
       >
         <MdKeyboardReturn />
+      </Btn>
+
+      <Divider />
+
+      {/* Tables go inside a clause; the row and column tools need the cursor in one. */}
+      <Btn
+        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run()}
+        title="Insert table (2 columns, header row)"
+        disabled={inTitle || !editor.can().insertTable({ rows: 3, cols: 2, withHeaderRow: true })}
+      >
+        <RiTableLine />
+      </Btn>
+      <Btn
+        onClick={() => editor.chain().focus().addRowAfter().run()}
+        title="Add row below"
+        disabled={!editor.can().addRowAfter()}
+      >
+        <RiInsertRowBottom />
+      </Btn>
+      <Btn
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+        title="Add column to the right"
+        disabled={!editor.can().addColumnAfter()}
+      >
+        <RiInsertColumnRight />
+      </Btn>
+      <Btn
+        onClick={() => editor.chain().focus().deleteRow().run()}
+        title="Delete row"
+        disabled={!editor.can().deleteRow()}
+      >
+        <RiDeleteRow />
+      </Btn>
+      <Btn
+        onClick={() => editor.chain().focus().deleteColumn().run()}
+        title="Delete column"
+        disabled={!editor.can().deleteColumn()}
+      >
+        <RiDeleteColumn />
+      </Btn>
+      <Btn
+        onClick={() => editor.chain().focus().deleteTable().run()}
+        title="Delete table"
+        disabled={!editor.can().deleteTable()}
+      >
+        <RiDeleteBin6Line />
       </Btn>
 
       <Divider />

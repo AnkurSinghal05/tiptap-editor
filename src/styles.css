@@ -1214,3 +1214,40 @@ button.stepper__button:hover {
   font-size: 12px;
   color: #475569;
 }
+
+/* Tables inside clauses (editor and Render tab) */
+.editor-surface .ProseMirror table,
+.render-surface table {
+  margin: 12px auto;
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 60%;
+}
+
+.editor-surface .ProseMirror th,
+.editor-surface .ProseMirror td,
+.render-surface th,
+.render-surface td {
+  min-width: 80px;
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+  vertical-align: top;
+}
+
+.editor-surface .ProseMirror th,
+.render-surface th {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.editor-surface .ProseMirror th p,
+.editor-surface .ProseMirror td p,
+.render-surface th p,
+.render-surface td p {
+  margin: 0;
+}
+
+.editor-surface .ProseMirror .selectedCell {
+  background: #eef2ff;
+}
