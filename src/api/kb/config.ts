@@ -6,15 +6,17 @@ export type ApiMode = "mock" | "live";
 export const DEFAULT_KB_API_BASE_URL = "https://stag-pgm-mgmt-api.thriwe.com/api/v1";
 export const KB_API_TARGET_URL: string = import.meta.env.VITE_KB_API_BASE_URL || DEFAULT_KB_API_BASE_URL;
 
-// The API doesn't allow browser calls from localhost (no CORS headers), so in
-// development live calls go to this path on the dev server, which proxies them
-// to KB_API_TARGET_URL (see vite.config.ts). Built apps call the API directly,
-// so the API must allow the deployed app's origin.
-// VITE_KB_API_DEV_PROXY=off calls the API directly in development too, which
-// only works once the API allows the dev server's origin.
-export const KB_API_DEV_PROXY_PATH = "/kb-api";
-export const KB_API_DEV_PROXY = import.meta.env.DEV && import.meta.env.VITE_KB_API_DEV_PROXY !== "off";
-export const KB_API_BASE_URL: string = KB_API_DEV_PROXY ? KB_API_DEV_PROXY_PATH : KB_API_TARGET_URL;
+// Live calls go either straight to KB_API_TARGET_URL, or to /kb-api on the
+// app's own server, which forwards them: the dev server in development (see
+// vite.config.ts) and api/kb-proxy.ts on Vercel, which also adds the token.
+// The API sends no CORS headers for localhost, so the proxy is on by default
+// in development; builds call the API directly unless VITE_KB_API_PROXY=on.
+// (VITE_KB_API_DEV_PROXY is the old name, read in development only.)
+export const KB_API_PROXY_PATH = "/kb-api";
+const proxySetting =
+  import.meta.env.VITE_KB_API_PROXY ?? (import.meta.env.DEV ? import.meta.env.VITE_KB_API_DEV_PROXY : undefined);
+export const KB_API_PROXY = proxySetting ? proxySetting !== "off" : import.meta.env.DEV;
+export const KB_API_BASE_URL: string = KB_API_PROXY ? KB_API_PROXY_PATH : KB_API_TARGET_URL;
 
 // Session token sent as `Authorization: Bearer <token>`, for local development
 // only: Vite inlines VITE_* values into the bundle, so it's never read in a

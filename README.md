@@ -34,7 +34,7 @@ Document
 - **Backend:** see [docs/kb-api-integration.md](docs/kb-api-integration.md).
   - **Mock / Live switch** (editor header): **Live** uses the Knowledge Base API, by default staging (`https://stag-pgm-mgmt-api.thriwe.com/api/v1`). **Mock** uses an in-memory backend (`src/api/kb/mock.ts`) with sample data from the backend team's Postman collection, which resets on page reload. The choice is remembered in the browser; switching reloads the page. `VITE_KB_API_MODE` sets the starting mode (default `live`).
   - **Local setup:** copy `.env.example` to `.env.local`. Live mode needs a session token in `VITE_KB_TOKEN`; it's only used in development and never included in a build. `VITE_KB_API_BASE_URL` points at a different API.
-  - **Dev proxy:** the API doesn't allow browser calls from `localhost` (no CORS headers), so in development live calls go to `/kb-api` on the dev server, which forwards them (see `vite.config.ts`). A built app calls the API directly, so the API must allow the deployed app's origin. To skip the proxy in development, set `VITE_KB_API_DEV_PROXY=off` in `.env.local` and restart `npm run dev`; that only works once the API allows `http://localhost:5173`.
+  - **Proxy:** the API doesn't allow browser calls from `localhost` (no CORS headers), so in development live calls go to `/kb-api` on the dev server, which forwards them (see `vite.config.ts`). On Vercel, `/kb-api` is served by `api/kb-proxy.ts` instead (see "Deploy on Vercel"). `VITE_KB_API_PROXY` switches it: on by default in development, off in other builds, which call `VITE_KB_API_BASE_URL` directly. `VITE_KB_API_PROXY=off` in development only works once the API allows `http://localhost:5173` (`VITE_KB_API_DEV_PROXY` is the old name and still works in development).
   - **API log** tab: records every call in both modes (method, endpoint, `Project-Code` header, request body, status and response; live mode shows the server's raw response). Entries can be expanded, cleared or downloaded as JSON, and each call is also logged to the browser console (debug level). The token is never logged.
   - This milestone always sends `Project-Code: THRIWE_APP` (base editing only).
 
@@ -51,3 +51,27 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Deploy on Vercel
+
+Live mode on Vercel goes through a Vercel Function, so the API token stays on the server: the browser calls `/kb-api/…` on the deployment, `vercel.json` rewrites that to `api/kb-proxy.ts`, and the function adds `Authorization: Bearer <KB_API_TOKEN>` and forwards the call to the API. The browser never sees the token and only talks to its own origin, so CORS doesn't apply.
+
+The function only forwards Knowledge Base endpoints (`/knowledge-base…`) with GET, POST or PATCH, only the `Project-Code` values in `KB_API_PROJECT_CODES` (default `THRIWE_APP`), and never forwards cookies or the browser's own headers.
+
+Set it up in this order:
+
+1. **Protect the deployment first.** Anyone who can open it can edit the base T&C with the token. In the project's **Settings → Deployment Protection**, enable **Vercel Authentication** with **All Deployments** (free on every plan). Standard Protection leaves the production domain public.
+2. **Add the token as a Secret** (Settings → Environment Variables, type **Secret**), or in your own terminal: `vercel env add KB_API_TOKEN production --sensitive`. Use a name without the `VITE_` prefix: `VITE_*` values are built into the public JavaScript.
+3. **Add the Config variables:**
+
+   | Variable | Value |
+   |---|---|
+   | `VITE_KB_API_MODE` | `live` (or `mock` for a demo with sample data) |
+   | `VITE_KB_API_PROXY` | `on` |
+   | `VITE_KB_API_BASE_URL` | optional; defaults to staging. The function uses it too (or `KB_API_BASE_URL`) |
+   | `KB_API_PROJECT_CODES` | optional; defaults to `THRIWE_APP` |
+
+   Don't add `VITE_KB_TOKEN` or `VITE_KB_API_DEV_PROXY`; they're for local development only.
+4. **Redeploy.** Vite builds the `VITE_*` values into the app, so changes apply only to new deployments.
+
+Things to know: every edit through the deployment is recorded under the token's user (`changed_by`), whoever made it, and a session token that expires has to be replaced (update the Secret, then redeploy). A long-lived service token from the backend team avoids both.
