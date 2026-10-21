@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import type { KbDocument } from "./types";
+import type { KbDocument, KbEntity } from "./types";
 
 // Sample data for the mock backend, taken from the documents in the backend
 // team's Postman collection (recorded GET / create responses). Vendor
@@ -36,6 +36,27 @@ const doc = (id: string, title: string, ...children: JSONContent[]): KbDocument 
   type: "tnc",
   doc: { type: "doc", content: [{ type: "section", attrs: { id }, content: [heading(1, title), ...children] }] },
 });
+
+// What GET /knowledge-base/entities returned on staging (Oct 21, 2026).
+export const MOCK_ENTITIES: KbEntity[] = [
+  { entity_id: "airport-transfer-booking", entity_name: "Airport Transfer Booking" },
+  { entity_id: "beach-club", entity_name: "Beach Club" },
+  { entity_id: "car-registration", entity_name: "Car Registration" },
+  { entity_id: "car-servicing", entity_name: "Car Servicing" },
+  { entity_id: "courier-booking", entity_name: "Courier Booking" },
+  { entity_id: "custom-delayed", entity_name: "Custom Delayed" },
+  { entity_id: "delayed", entity_name: "Delayed" },
+  { entity_id: "dynamic-coupon", entity_name: "Dynamic Coupon" },
+  { entity_id: "golf-booking", entity_name: "Golf Booking" },
+  { entity_id: "golf-booking-learn", entity_name: "Golf Booking Learn" },
+  { entity_id: "gym-club-booking", entity_name: "Gym Club Booking" },
+  { entity_id: "ladies-club", entity_name: "Ladies Club" },
+  { entity_id: "meet-and-greet-booking", entity_name: "Meet And Greet Booking" },
+  { entity_id: "padel-booking", entity_name: "Padel Booking" },
+  { entity_id: "static-coupon", entity_name: "Static Coupon" },
+  { entity_id: "unique-coupon", entity_name: "Unique Coupon" },
+  { entity_id: "valet-booking", entity_name: "Valet Booking" },
+];
 
 export const MOCK_SEED: KbDocument[] = [
   doc(

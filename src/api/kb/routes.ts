@@ -24,6 +24,11 @@ const query = (params: Record<string, string | number | undefined>) => {
 const clausePath = (clauseId: string) => `/knowledge-base/clauses/${encodeURIComponent(clauseId)}`;
 
 export const kbRoutes = {
+  listEntities: (): KbRoute => ({
+    method: "GET",
+    path: "/knowledge-base/entities",
+    successStatus: 200,
+  }),
   listDocuments: (params: ListDocumentsParams): KbRoute => ({
     method: "GET",
     path: `/knowledge-base${query({ ...params })}`,

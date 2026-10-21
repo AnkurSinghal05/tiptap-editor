@@ -1,7 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { MAX_CLAUSES_PER_DELETE, MAX_CLAUSES_PER_REQUEST } from "./config";
 import { KbApiError, type KbApi } from "./client";
-import { MOCK_SEED } from "./mockSeed";
+import { MOCK_ENTITIES, MOCK_SEED } from "./mockSeed";
 import { DOC_TYPES, type AddClauseBody, type DocType, type FieldError, type KbDocument } from "./types";
 
 // In-memory stand-in for the Knowledge Base API, following the backend's
@@ -247,6 +247,10 @@ export const createMockKbApi = (options: MockKbOptions = {}): KbApi => {
   };
 
   return {
+    async listEntities() {
+      await delay();
+      return clone(MOCK_ENTITIES);
+    },
     async listDocuments(params) {
       await delay();
       const errors: FieldError[] = [];

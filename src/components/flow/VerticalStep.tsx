@@ -4,12 +4,18 @@ import { MdArrowBack, MdArrowForward, MdCheckCircle, MdOutlineFileUpload, MdSear
 import { kbApi } from "../../api/kb";
 import { KbApiError } from "../../api/kb/client";
 import { missingTokenHint } from "../../api/kb/errors";
-import { DOC_TYPES, type DocType, type KbDocument } from "../../api/kb/types";
+import { DOC_TYPES, type DocType, type KbDocument, type KbEntity } from "../../api/kb/types";
 import type { OpenRequest } from "../../editor/Editor";
 import { ACCEPTED_FILES, type FileImport } from "../../editor/importFile";
 import type { ImportResult, ImportTarget } from "../../editor/importJson";
-import { ENTITIES, labelOf, type EntityId } from "../../editor/taxonomy";
+import { labelOf } from "../../editor/taxonomy";
 import { shortTypeLabel } from "./TypeStep";
+
+// The verticals (GET /knowledge-base/entities).
+export type EntitiesState =
+  | { state: "loading" }
+  | { state: "ready"; list: KbEntity[] }
+  | { state: "error"; message: string; hint: string | null };
 
 // What the backend has for the chosen vertical.
 type Check =
@@ -27,8 +33,11 @@ type FileState =
 
 interface VerticalStepProps {
   docType: DocType;
-  value: EntityId | null;
-  onChange: (entityId: EntityId) => void;
+  // null until the list is first requested.
+  entities: EntitiesState | null;
+  onRetryEntities: () => void;
+  value: string | null;
+  onChange: (entityId: string) => void;
   onBack: () => void;
   // Returns what's wrong with the pasted JSON, or null (opened, or cancelled
   // by the user).
@@ -49,7 +58,17 @@ const textOf = (n: JSONContent): string =>
 const PREVIEW_CLAUSES = 5;
 
 // Step 2: which vertical (entity), and how to start when it has no document.
-export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJson, readFile }: VerticalStepProps) => {
+export const VerticalStep = ({
+  docType,
+  entities,
+  onRetryEntities,
+  value,
+  onChange,
+  onBack,
+  onOpen,
+  checkJson,
+  readFile,
+}: VerticalStepProps) => {
   const [query, setQuery] = useState("");
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [retry, setRetry] = useState(0);
@@ -90,19 +109,20 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
     };
   }, [docType, value, retry]);
 
+  const all = useMemo(() => (entities?.state === "ready" ? entities.list : []), [entities]);
   const verticals = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? ENTITIES.filter((e) => e.label.toLowerCase().includes(q) || e.value.includes(q)) : ENTITIES;
-  }, [query]);
+    return q ? all.filter((e) => e.entity_name.toLowerCase().includes(q) || e.entity_id.includes(q)) : all;
+  }, [all, query]);
 
   const typeName = labelOf(DOC_TYPES, docType);
   const short = shortTypeLabel(docType);
-  const name = value ? labelOf(ENTITIES, value) : "";
+  const name = value ? (all.find((e) => e.entity_id === value)?.entity_name ?? value) : "";
   const document = check.state === "ready" ? check.document : undefined;
   const pasting = document === null && start === "json" && json.trim() !== "";
   const jsonCheck = useMemo(
-    () => (pasting && value ? checkJson(json, { docType, entityId: value, title: labelOf(ENTITIES, value) }) : null),
-    [pasting, json, docType, value, checkJson],
+    () => (pasting && value ? checkJson(json, { docType, entityId: value, title: name }) : null),
+    [pasting, json, docType, value, name, checkJson],
   );
   const canOpen =
     document !== undefined &&
@@ -186,34 +206,46 @@ export const VerticalStep = ({ docType, value, onChange, onBack, onOpen, checkJs
         />
       </label>
 
+      {(!entities || entities.state === "loading") && <p className="flow-note">Loading verticals…</p>}
+      {entities?.state === "error" && (
+        <div className="flow-callout flow-callout--error" role="alert">
+          <div>Couldn't load the verticals: {entities.message}</div>
+          {entities.hint && <div>{entities.hint}</div>}
+          <button type="button" onClick={onRetryEntities}>
+            Try again
+          </button>
+        </div>
+      )}
+
       <div className="choice-grid choice-grid--verticals" role="radiogroup" aria-label="Vertical">
         {verticals.map((e) => {
-          const selected = value === e.value;
+          const selected = value === e.entity_id;
           const status = selected ? statusOf() : null;
           return (
             <button
-              key={e.value}
+              key={e.entity_id}
               type="button"
               role="radio"
               aria-checked={selected}
               className={selected ? "choice choice--selected" : "choice"}
               onClick={() => {
-                onChange(e.value);
+                onChange(e.entity_id);
                 setOpenErrors([]);
               }}
             >
               <span className="choice__head">
-                <span className="choice__title">{e.label}</span>
+                <span className="choice__title">{e.entity_name}</span>
                 {selected && <MdCheckCircle className="choice__check" aria-hidden />}
               </span>
-              <span className="choice__id">{e.value}</span>
+              <span className="choice__id">{e.entity_id}</span>
               {status && <span className={`vertical-status vertical-status--${status.kind}`}>{status.text}</span>}
             </button>
           );
         })}
       </div>
-      {verticals.length === 0 && <p className="flow-note">No vertical matches “{query}”.</p>}
-      <p className="flow-note">Vertical not listed? Verticals come from a fixed list in the editor for now, because the API can't list them.</p>
+      {entities?.state === "ready" && verticals.length === 0 && (
+        <p className="flow-note">{query.trim() ? `No vertical matches “${query}”.` : "The API returned no verticals."}</p>
+      )}
 
       {value && check.state === "error" && (
         <div className="flow-callout flow-callout--error" role="alert">

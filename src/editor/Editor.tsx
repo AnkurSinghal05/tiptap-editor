@@ -150,7 +150,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
   const [subSectionsRefresh, setSubSectionsRefresh] = useState<SubSectionsRefresh>({});
   // The document type and vertical the create flow opened (the scope bar
   // narrows within it).
-  const [opened, setOpened] = useState<{ docType: DocType; entityId: string } | null>(null);
+  const [opened, setOpened] = useState<{ docType: DocType; entityId: string; title: string } | null>(null);
   // Set while JSON from the JSON tab is applied: the edit guards report into
   // it instead of showing an alert.
   const guardRejectsRef = useRef<string[] | null>(null);
@@ -405,7 +405,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       } else {
         startCreate(request.docType, request.entityId, request.title, from);
       }
-      setOpened(target);
+      setOpened({ ...target, title: request.title });
       setActiveTab("render");
       return null;
     },
@@ -743,6 +743,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       <ScopeBar
         docType={opened?.docType ?? null}
         entityId={opened?.entityId ?? null}
+        entityName={opened?.title ?? null}
         creating={creating}
         loading={busy}
         subSectionsRefresh={subSectionsRefresh}

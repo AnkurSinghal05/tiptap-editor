@@ -1,16 +1,16 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle, type OpenRequest } from "./editor/Editor";
 import type { ImportResult, ImportTarget } from "./editor/importJson";
 import type { FileImport } from "./editor/importFile";
-import { ENTITIES, labelOf, type EntityId } from "./editor/taxonomy";
+import { labelOf } from "./editor/taxonomy";
+import { kbApi } from "./api/kb";
+import { missingTokenHint } from "./api/kb/errors";
 import { DOC_TYPES, type DocType } from "./api/kb/types";
 import { Stepper, type StepInfo } from "./components/flow/Stepper";
 import { TypeStep, shortTypeLabel } from "./components/flow/TypeStep";
-import { VerticalStep } from "./components/flow/VerticalStep";
+import { VerticalStep, type EntitiesState } from "./components/flow/VerticalStep";
 
 type Step = "type" | "vertical" | "edit";
-
-const verticalName = (id: string) => ENTITIES.find((e) => e.value === id)?.label ?? id;
 
 // Create flow: document type → vertical → editor. The editor stays mounted
 // (hidden on the first two steps), so going back keeps its unsaved changes
@@ -19,7 +19,26 @@ export const App = () => {
   const editorRef = useRef<EditorHandle>(null);
   const [step, setStep] = useState<Step>("type");
   const [docType, setDocType] = useState<DocType | null>(null);
-  const [entityId, setEntityId] = useState<EntityId | null>(null);
+  const [entityId, setEntityId] = useState<string | null>(null);
+  // The verticals, from GET /knowledge-base/entities: fetched the first time
+  // step 2 opens, then kept (null until then).
+  const [entities, setEntities] = useState<EntitiesState | null>(null);
+
+  const loadEntities = useCallback(() => {
+    setEntities({ state: "loading" });
+    kbApi.listEntities().then(
+      (list) => setEntities({ state: "ready", list }),
+      (err: unknown) =>
+        setEntities({ state: "error", message: err instanceof Error ? err.message : String(err), hint: missingTokenHint(err) }),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (step === "vertical" && entities === null) loadEntities();
+  }, [step, entities, loadEntities]);
+
+  const verticalName = (id: string) =>
+    (entities?.state === "ready" ? entities.list.find((e) => e.entity_id === id)?.entity_name : undefined) ?? id;
   // What's open in the editor, once something is.
   const [opened, setOpened] = useState<{ docType: DocType; entityId: string } | null>(null);
 
@@ -71,6 +90,8 @@ export const App = () => {
       {step === "vertical" && docType && (
         <VerticalStep
           docType={docType}
+          entities={entities}
+          onRetryEntities={loadEntities}
           value={entityId}
           onChange={setEntityId}
           onBack={() => setStep("type")}

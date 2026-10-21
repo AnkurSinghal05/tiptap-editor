@@ -114,6 +114,10 @@ export const withApiLog = (api: KbApi, log: ApiLogWriter, label = "kb api"): KbA
   const ok = <T>(route: KbRoute) => (data: T): Envelope<unknown> => ({ message: "Success", code: route.successStatus, data });
 
   return {
+    listEntities() {
+      const route = kbRoutes.listEntities();
+      return record(route, () => api.listEntities(), ok(route));
+    },
     listDocuments(params) {
       const route = kbRoutes.listDocuments(params);
       return record(route, () => api.listDocuments(params), (r) => ({

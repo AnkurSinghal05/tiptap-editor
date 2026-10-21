@@ -18,6 +18,12 @@ export interface KbDocument {
   doc: JSONContent;
 }
 
+// A vertical, as GET /knowledge-base/entities lists it.
+export interface KbEntity {
+  entity_id: string;
+  entity_name: string;
+}
+
 export interface Pagination {
   limit: number;
   offset: number;

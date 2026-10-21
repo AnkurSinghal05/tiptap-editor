@@ -5,10 +5,8 @@ import { KbApiError } from "../api/kb/client";
 import { DOC_TYPES, type DocType, type KbDocument } from "../api/kb/types";
 import type { Scope } from "../editor/scope";
 import {
-  ENTITIES,
   SUBSECTION_TYPES,
   WORKFLOWS,
-  isOneOf,
   labelOf,
   type SubSectionType,
   type WorkflowId,
@@ -26,6 +24,8 @@ interface ScopeBarProps {
   // The document type and vertical (entity) chosen in the create flow.
   docType: DocType | null;
   entityId: string | null;
+  // The vertical's name, from GET /knowledge-base/entities.
+  entityName: string | null;
   // A new document that isn't saved yet is open.
   creating: boolean;
   loading: boolean;
@@ -64,6 +64,7 @@ const subSectionsOf = (d: KbDocument | undefined): SubSectionOption[] =>
 export const ScopeBar = ({
   docType,
   entityId,
+  entityName,
   creating,
   loading,
   subSectionsRefresh,
@@ -125,7 +126,7 @@ export const ScopeBar = ({
     });
   };
 
-  const verticalName = isOneOf(ENTITIES, entityId) ? labelOf(ENTITIES, entityId) : entityId;
+  const verticalName = entityName || entityId;
   // The vertical's name becomes the title (editable until the first save).
   const start = () => onCreate(docType, entityId, verticalName);
 

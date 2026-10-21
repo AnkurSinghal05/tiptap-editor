@@ -8,6 +8,7 @@ import type {
   DocType,
   FieldError,
   KbDocument,
+  KbEntity,
   ListDocumentsParams,
   Pagination,
 } from "./types";
@@ -25,6 +26,8 @@ export class KbApiError extends Error {
 }
 
 export interface KbApi {
+  // Every vertical (entity) a document can be written for.
+  listEntities(): Promise<KbEntity[]>;
   listDocuments(params: ListDocumentsParams): Promise<{ documents: KbDocument[]; pagination: Pagination }>;
   createDocument(document: KbDocument): Promise<KbDocument>;
   // One new clause. Several at once go through `append`.
@@ -95,6 +98,7 @@ export const createHttpKbApi = (opts: {
   };
 
   return {
+    listEntities: async () => (await request<KbEntity[]>(kbRoutes.listEntities())).data ?? [],
     async listDocuments(params) {
       const res = await request<KbDocument[]>(kbRoutes.listDocuments(params));
       return {
