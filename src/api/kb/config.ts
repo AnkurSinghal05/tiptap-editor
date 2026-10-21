@@ -10,8 +10,11 @@ export const KB_API_TARGET_URL: string = import.meta.env.VITE_KB_API_BASE_URL ||
 // development live calls go to this path on the dev server, which proxies them
 // to KB_API_TARGET_URL (see vite.config.ts). Built apps call the API directly,
 // so the API must allow the deployed app's origin.
+// VITE_KB_API_DEV_PROXY=off calls the API directly in development too, which
+// only works once the API allows the dev server's origin.
 export const KB_API_DEV_PROXY_PATH = "/kb-api";
-export const KB_API_BASE_URL: string = import.meta.env.DEV ? KB_API_DEV_PROXY_PATH : KB_API_TARGET_URL;
+export const KB_API_DEV_PROXY = import.meta.env.DEV && import.meta.env.VITE_KB_API_DEV_PROXY !== "off";
+export const KB_API_BASE_URL: string = KB_API_DEV_PROXY ? KB_API_DEV_PROXY_PATH : KB_API_TARGET_URL;
 
 // Session token sent as `Authorization: Bearer <token>`, for local development
 // only: Vite inlines VITE_* values into the bundle, so it's never read in a

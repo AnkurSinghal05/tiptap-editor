@@ -15,7 +15,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      proxy: {
+      // VITE_KB_API_DEV_PROXY=off: the app calls the API directly (see
+      // KB_API_DEV_PROXY in src/api/kb/config.ts), so no proxy is needed.
+      proxy: env.VITE_KB_API_DEV_PROXY === "off" ? undefined : {
         // The API sends no CORS headers for localhost, so in development the
         // app calls /kb-api/... and this forwards it (KB_API_DEV_PROXY_PATH).
         "/kb-api": {
