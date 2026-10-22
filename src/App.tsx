@@ -3,7 +3,8 @@ import { Editor, type EditorHandle, type OpenRequest } from "./editor/Editor";
 import type { ImportResult, ImportTarget } from "./editor/importJson";
 import type { FileImport } from "./editor/importFile";
 import { labelOf } from "./editor/taxonomy";
-import { kbApi } from "./api/kb";
+import { apiMode, kbApi } from "./api/kb";
+import { PROJECTS, PROJECT_CODE, setProjectCode, type ProjectCode } from "./api/kb/config";
 import { missingTokenHint } from "./api/kb/errors";
 import { DOC_TYPES, type DocType } from "./api/kb/types";
 import { Stepper, type StepInfo } from "./components/flow/Stepper";
@@ -66,6 +67,16 @@ export const App = () => {
     return null;
   };
 
+  // The API client, the vertical list and the open document all belong to one
+  // project, so switching stores the choice and reloads.
+  const switchProject = (code: ProjectCode) => {
+    if (code === PROJECT_CODE) return;
+    const label = PROJECTS.find((p) => p.code === code)?.label ?? code;
+    if (editorRef.current && !editorRef.current.confirmLeave(`You have unsaved changes. Discard them and switch to ${label}?`)) return;
+    setProjectCode(code);
+    window.location.reload();
+  };
+
   const checkJson = useCallback(
     (text: string, target: ImportTarget): ImportResult =>
       editorRef.current?.checkJson(text, target) ?? { ok: false, errors: ["The editor isn't ready yet."] },
@@ -80,8 +91,27 @@ export const App = () => {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Tiptap Structured Editor</h1>
-        <p>Document → Section → Clause → Blocks</p>
+        <div>
+          <h1>Tiptap Structured Editor</h1>
+          <p>Document → Section → Clause → Blocks</p>
+        </div>
+        <label
+          className="project-switch"
+          title={apiMode === "mock" ? "The mock only models Thriwe's base document. Switch to Live to work as a program." : undefined}
+        >
+          Project
+          <select
+            value={PROJECT_CODE}
+            disabled={apiMode === "mock"}
+            onChange={(e) => switchProject(e.target.value as ProjectCode)}
+          >
+            {PROJECTS.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.label} ({p.code})
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
 
       <Stepper steps={steps} current={step} canGoTo={canGoTo} onGoTo={setStep} />

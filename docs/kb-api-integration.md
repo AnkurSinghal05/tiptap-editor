@@ -65,7 +65,7 @@ Compared with our previous review, these are new or now described in detail.
 | Response wrapper `{ message, code, data }`; 400 errors carry field paths | The HTTP client reads the wrapper; validation errors are pinned to the clause they point at |
 | Base deletes are final for every program, including programs' own versions of the clause | Save asks for confirmation before deleting clauses |
 | Some writes can fail while others succeed | Saved changes are kept; failed clauses stay unsaved and are highlighted with the reason |
-| Every request needs `Project-Code` | `THRIWE_APP` for this milestone; program views come later |
+| Every request needs `Project-Code` | A project switch in the header: `THRIWE_APP` (base) or `ENBD_V3` (ENBD's own version). Programs can't create documents, and their removals apply to them only |
 
 ## Open questions for the backend
 
@@ -98,7 +98,7 @@ Compared with our previous review, these are new or now described in detail.
 
 ## Program views
 
-Not built yet. Every request sends `Project-Code: THRIWE_APP` (decision 2). The Oct 16 handover is enough to plan them; this is what each part needs.
+Started Oct 22, 2026: the header's project switch sends `THRIWE_APP` or `ENBD_V3`, programs can't start documents, and the delete warning says a program's removals apply to it only. Revert, History, customised-clause markers and mapping screens aren't built yet. This is what each part needs.
 
 **Seeing a program's content:**
 - A way to pick the program. There's no endpoint that lists programs, so codes have to be typed in or come from configuration.
@@ -135,5 +135,5 @@ Agreed on Oct 14, 2026, and built in this repo:
    - **Order:** new clauses first (a single add for one, `append` for several, split at 500, all or nothing); then one PATCH per edited clause; then removed clauses in batch deletes of up to 50. After that, the scope is reloaded from the backend.
    - **If some requests fail:** the rest stay saved and the failed clauses are highlighted.
    - **If an add or append gets no response:** saving is blocked until the user reloads, so the clauses can't be added twice.
-2. **First milestone:** base editing only. Every request sends `Project-Code: THRIWE_APP`; program views (program selector, Revert, History) come later.
+2. **First milestone:** base editing only, with `Project-Code: THRIWE_APP`. Since Oct 22, 2026 a project switch also offers `ENBD_V3`; Revert and History come later.
 3. **Backend:** staging, `https://stag-pgm-mgmt-api.thriwe.com/api/v1` (overridable with `VITE_KB_API_BASE_URL`), with a **Mock / Live** switch in the editor. Mock is an in-memory backend that follows the handover; its sample data comes from the Postman collection, minus the vendor subSections the API no longer accepts. In development, live calls go through a dev-server proxy (see open question 13). On Vercel, a function (`api/kb-proxy.ts`) does the same and adds the token from a server-side Secret, so the token never reaches the browser; the deployment must be behind Vercel Authentication (see the README).

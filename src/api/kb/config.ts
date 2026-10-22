@@ -55,8 +55,46 @@ export const setApiMode = (mode: ApiMode) => {
   }
 };
 
-// This milestone edits base clauses only.
-export const PROJECT_CODE = "THRIWE_APP";
+// Projects (sent as the Project-Code header). THRIWE_APP edits the base
+// document every program inherits; a program's code edits that program's own
+// version (its changes, removals and additions), and can't create documents.
+// Keep in sync with KB_API_PROJECT_CODES' default in api/kb-proxy.ts.
+export const PROJECTS = [
+  { code: "THRIWE_APP", label: "Thriwe" },
+  { code: "ENBD_V3", label: "ENBD" },
+] as const;
+
+export type ProjectCode = (typeof PROJECTS)[number]["code"];
+
+export const BASE_PROJECT_CODE: ProjectCode = "THRIWE_APP";
+const PROJECT_STORAGE_KEY = "kb-project-code";
+const isProjectCode = (value: unknown): value is ProjectCode => PROJECTS.some((p) => p.code === value);
+
+// The project chosen with the switch in the header (kept in this browser).
+export const getProjectCode = (): ProjectCode => {
+  try {
+    const stored = localStorage.getItem(PROJECT_STORAGE_KEY);
+    if (isProjectCode(stored)) return stored;
+  } catch {
+    // storage unavailable
+  }
+  return BASE_PROJECT_CODE;
+};
+
+// Takes effect on the next page load (the API client is created once).
+export const setProjectCode = (code: ProjectCode) => {
+  try {
+    localStorage.setItem(PROJECT_STORAGE_KEY, code);
+  } catch {
+    // storage unavailable: the choice won't stick
+  }
+};
+
+// Fixed for this page load. The mock only models the base document, so it
+// always works as THRIWE_APP.
+export const PROJECT_CODE: ProjectCode = getApiMode() === "mock" ? BASE_PROJECT_CODE : getProjectCode();
+export const IS_BASE_PROJECT = PROJECT_CODE === BASE_PROJECT_CODE;
+export const PROJECT_LABEL = `${PROJECTS.find((p) => p.code === PROJECT_CODE)?.label} (${PROJECT_CODE})`;
 
 // Server limit on clauses per create/append request.
 export const MAX_CLAUSES_PER_REQUEST = 500;

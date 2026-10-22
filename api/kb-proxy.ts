@@ -7,7 +7,7 @@
 //   KB_API_TOKEN (Secret)  session token, sent as "Authorization: Bearer …"
 //   KB_API_BASE_URL or VITE_KB_API_BASE_URL (Config, optional)  defaults to staging
 //   KB_API_PROJECT_CODES (Config, optional)  Project-Code values allowed through,
-//     comma-separated; defaults to THRIWE_APP
+//     comma-separated; defaults to THRIWE_APP,ENBD_V3 (the editor's projects)
 //
 // Anyone who can open the deployment can use this token through it, so the
 // deployment must be behind Vercel Authentication (All Deployments).
@@ -41,7 +41,7 @@ export default {
       return fail(404, "Only Knowledge Base endpoints are forwarded.");
     }
 
-    const allowedCodes = (process.env.KB_API_PROJECT_CODES ?? "THRIWE_APP").split(",").map((c) => c.trim());
+    const allowedCodes = (process.env.KB_API_PROJECT_CODES ?? "THRIWE_APP,ENBD_V3").split(",").map((c) => c.trim());
     const projectCode = request.headers.get("project-code");
     if (projectCode && !allowedCodes.includes(projectCode)) {
       return fail(403, `Project-Code ${projectCode} isn't allowed through this deployment.`);

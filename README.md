@@ -38,7 +38,7 @@ Document
   - **Local setup:** copy `.env.example` to `.env.local`. Live mode needs a session token in `VITE_KB_TOKEN`; it's only used in development and never included in a build. `VITE_KB_API_BASE_URL` points at a different API.
   - **Proxy:** the API doesn't allow browser calls from `localhost` (no CORS headers), so in development live calls go to `/kb-api` on the dev server, which forwards them (see `vite.config.ts`). On Vercel, `/kb-api` is served by `api/kb-proxy.ts` instead (see "Deploy on Vercel"). `VITE_KB_API_PROXY` switches it: on by default in development, off in other builds, which call `VITE_KB_API_BASE_URL` directly. `VITE_KB_API_PROXY=off` in development only works once the API allows `http://localhost:5173` (`VITE_KB_API_DEV_PROXY` is the old name and still works in development).
   - **API log** tab: records every call in both modes: method, the real API endpoint it reached (for calls through the `/kb-api` proxy, the URL the proxy reports in its `X-KB-Upstream-URL` response header; mock calls are marked as answered in the browser), `Project-Code` header, request body, status and response (live mode shows the server's raw response). Entries can be expanded, cleared or downloaded as JSON, and each call is also logged to the browser console (debug level). The token is never logged.
-  - This milestone always sends `Project-Code: THRIWE_APP` (base editing only).
+  - **Project switch** (header): **Thriwe (`THRIWE_APP`)** edits the base T&C every program inherits; **ENBD (`ENBD_V3`)** edits ENBD's own version on top of the base. Every request sends the chosen code as `Project-Code`; the choice is remembered in the browser and switching reloads the page (unsaved changes are confirmed first). As a program: a save's edits and removals apply to that program only, verticals without a document can't be started (only Thriwe can create documents), and the delete warning says so. Mock mode always works as Thriwe, since the mock only models the base document. Revert and history aren't in the editor yet. Projects are listed in `PROJECTS` in `src/api/kb/config.ts`.
 
 ## Develop
 
@@ -58,7 +58,7 @@ npm run preview
 
 Live mode on Vercel goes through a Vercel Function, so the API token stays on the server: the browser calls `/kb-api/…` on the deployment, `vercel.json` rewrites that to `api/kb-proxy.ts`, and the function adds `Authorization: Bearer <KB_API_TOKEN>` and forwards the call to the API. The browser never sees the token and only talks to its own origin, so CORS doesn't apply.
 
-The function only forwards Knowledge Base endpoints (`/knowledge-base…`) with GET, POST or PATCH, only the `Project-Code` values in `KB_API_PROJECT_CODES` (default `THRIWE_APP`), and never forwards cookies or the browser's own headers.
+The function only forwards Knowledge Base endpoints (`/knowledge-base…`) with GET, POST or PATCH, only the `Project-Code` values in `KB_API_PROJECT_CODES` (default `THRIWE_APP,ENBD_V3`), and never forwards cookies or the browser's own headers.
 
 Set it up in this order:
 
@@ -71,7 +71,7 @@ Set it up in this order:
    | `VITE_KB_API_MODE` | `live` (or `mock` for a demo with sample data) |
    | `VITE_KB_API_PROXY` | `on` |
    | `VITE_KB_API_BASE_URL` | optional; defaults to staging. The function uses it too (or `KB_API_BASE_URL`) |
-   | `KB_API_PROJECT_CODES` | optional; defaults to `THRIWE_APP` |
+   | `KB_API_PROJECT_CODES` | optional; defaults to `THRIWE_APP,ENBD_V3` (the editor's projects) |
 
    Don't add `VITE_KB_TOKEN` or `VITE_KB_API_DEV_PROXY`; they're for local development only.
 4. **Redeploy.** Vite builds the `VITE_*` values into the app, so changes apply only to new deployments.

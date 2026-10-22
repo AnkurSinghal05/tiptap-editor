@@ -3,6 +3,7 @@ import type { JSONContent } from "@tiptap/core";
 import { MdArrowBack, MdArrowForward, MdCheckCircle, MdOutlineFileUpload, MdSearch } from "react-icons/md";
 import { kbApi } from "../../api/kb";
 import { KbApiError } from "../../api/kb/client";
+import { IS_BASE_PROJECT, PROJECT_LABEL } from "../../api/kb/config";
 import { missingTokenHint } from "../../api/kb/errors";
 import { DOC_TYPES, type DocType, type KbDocument, type KbEntity } from "../../api/kb/types";
 import type { OpenRequest } from "../../editor/Editor";
@@ -124,12 +125,11 @@ export const VerticalStep = ({
     () => (pasting && value ? checkJson(json, { docType, entityId: value, title: name }) : null),
     [pasting, json, docType, value, name, checkJson],
   );
-  const canOpen =
-    document !== undefined &&
-    (document !== null ||
-      start === "blank" ||
-      (start === "json" && jsonCheck?.ok === true) ||
-      (start === "file" && file.state === "ready"));
+  // An existing document opens; a missing one can be started by THRIWE_APP only.
+  const canStart =
+    IS_BASE_PROJECT &&
+    (start === "blank" || (start === "json" && jsonCheck?.ok === true) || (start === "file" && file.state === "ready"));
+  const canOpen = document !== undefined && (document !== null || canStart);
 
   const chooseFile = (chosen: File | undefined) => {
     if (!chosen) return;
@@ -262,11 +262,21 @@ export const VerticalStep = ({
       {document && (
         <div className="flow-callout flow-callout--info">
           {name} already has a {typeName} document ({plural(countClauses(document.doc), "clause")}). It opens in the
-          editor, where you can also edit it as JSON. Saved changes apply to every program straight away.
+          editor, where you can also edit it as JSON.{" "}
+          {IS_BASE_PROJECT
+            ? "Saved changes apply to every program straight away."
+            : `Saved changes apply to ${PROJECT_LABEL} only: its own version, on top of the base.`}
         </div>
       )}
 
-      {document === null && (
+      {document === null && !IS_BASE_PROJECT && (
+        <div className="flow-callout flow-callout--info">
+          {PROJECT_LABEL} has no {typeName} document for {name}. Either Thriwe hasn't created the base document yet, or{" "}
+          {name} isn't mapped to this project. Only Thriwe (THRIWE_APP) can create documents.
+        </div>
+      )}
+
+      {document === null && IS_BASE_PROJECT && (
         <div className="flow-start">
           <p>
             {name} has no {typeName} document yet. How do you want to start?

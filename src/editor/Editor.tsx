@@ -55,7 +55,9 @@ import {
   KB_API_TARGET_URL,
   MAX_CLAUSES_PER_DELETE,
   MAX_CLAUSES_PER_REQUEST,
+  IS_BASE_PROJECT,
   PROJECT_CODE,
+  PROJECT_LABEL,
   setApiMode,
   type ApiMode,
 } from "../api/kb/config";
@@ -81,6 +83,9 @@ export interface EditorHandle {
   // Splits a PDF, DOCX or TXT file into clauses (rejects with a readable message).
   readFile(file: File): Promise<FileImport>;
   isDirty(): boolean;
+  // Before the page reloads (e.g. switching project): asks to discard unsaved
+  // changes. True when it's fine to leave.
+  confirmLeave(message: string): boolean;
 }
 
 interface EditorProps {
@@ -429,6 +434,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       editor ? readDocumentFile(file, editor.schema) : Promise.reject(new Error("The editor isn't ready yet.")),
     // A new, unsaved document counts as one pending change.
     isDirty: () => pendingChanges > 0,
+    confirmLeave: (message) => {
+      if (pendingChanges > 0 && !window.confirm(message)) return false;
+      discardConfirmedRef.current = true;
+      return true;
+    },
   }));
 
   if (!editor) return null;
@@ -534,12 +544,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       setStatus({ kind: "error", message: "Fix these before saving:", problems });
       return;
     }
-    // Base deletes are final for every program, so confirm them.
+    // Base deletes are final for every program; a program's only hide the
+    // clauses for that program. Confirm either way.
     const deletions = creatingRef.current ? 0 : computeChanges(doc, baselineRef.current).deleted.length;
+    const them = deletions > 1 ? "them" : "it";
+    const clauses = `${deletions} clause${deletions > 1 ? "s" : ""}`;
     if (
       deletions > 0 &&
       !window.confirm(
-        `This save deletes ${deletions} clause${deletions > 1 ? "s" : ""} for every program, including programs that edited ${deletions > 1 ? "them" : "it"}. Continue?`,
+        IS_BASE_PROJECT
+          ? `This save deletes ${clauses} for every program, including programs that edited ${them}. Continue?`
+          : `This save removes ${clauses} for ${PROJECT_LABEL} only. The base T&C and other programs keep ${them}. Continue?`,
       )
     ) {
       return;
@@ -796,6 +811,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
         entityId={opened?.entityId ?? null}
         entityName={opened?.title ?? null}
         creating={creating}
+        canCreate={IS_BASE_PROJECT}
         loading={busy}
         subSectionsRefresh={subSectionsRefresh}
         onLoad={(next) => void loadScope(next)}
