@@ -165,6 +165,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
   // Ref-based callback keeps the extension's option stable while letting
   // React state setters be invoked through the closure below.
   const requestClauseAtRef = useRef<(pos: number) => void>(() => {});
+  // A saved or new clause whose tags are being edited (its "Edit tags" button).
+  const [editTags, setEditTags] = useState<{ clauseId: string; tags: string[] } | null>(null);
+  const editTagsRef = useRef<(clauseId: string) => void>(() => {});
 
   // Pending changes + the requests Save would send (shown in the side panel).
   const refreshDerived = (doc: PMNode, html: string) => {
@@ -216,6 +219,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       Clause.configure({
         resolveTempId: (tempId) => sessionIdMapRef.current.get(tempId),
         isKnownId: (id) => baselineRef.current.clauses.has(id),
+        onEditTags: (id) => editTagsRef.current(id),
       }),
       StarterKit.configure({ document: false, heading: false }),
       CustomHeading.configure({
@@ -627,6 +631,43 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
 
   requestClauseAtRef.current = (pos: number) => openTagsDialogAt(clausePosInContainerAt(pos));
 
+  // Clauses are found by id, not position, so the dialog stays tied to its clause.
+  const findClause = (id: string) => {
+    let found: { node: PMNode; pos: number } | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (found) return false;
+      if (node.type.name === "clause" && node.attrs.id === id) found = { node, pos };
+      return node.type.name !== "clause";
+    });
+    return found as { node: PMNode; pos: number } | null;
+  };
+
+  editTagsRef.current = (id: string) => {
+    const found = findClause(id);
+    if (!found || !inScope(found.pos)) return;
+    setEditTags({ clauseId: id, tags: [...(found.node.attrs.tags ?? [])] });
+  };
+
+  // An ordinary edit: undoable, counted as a pending change, saved as a PATCH.
+  const handleEditTagsConfirm = (tags: string[]) => {
+    const target = editTags;
+    setEditTags(null);
+    const found = target && findClause(target.clauseId);
+    if (!found || JSON.stringify(found.node.attrs.tags ?? []) === JSON.stringify(tags)) return;
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(found.pos, "tags", tags));
+  };
+
+  // Every tag in the document, offered in the tags dialog.
+  const documentTags = (() => {
+    const all = new Set<string>();
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== "clause") return true;
+      (node.attrs.tags ?? []).forEach((t: string) => all.add(t));
+      return false;
+    });
+    return [...all].sort();
+  })();
+
   // New containers start with one empty clause (the backend doesn't store
   // empty containers); the cursor goes into it.
   const insertContainer = (
@@ -890,8 +931,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
       <TagsDialog
         open={showTagsDialog}
         title="Tags for new clause"
+        suggestions={documentTags}
         onConfirm={handleTagsConfirm}
         onCancel={handleTagsCancel}
+      />
+
+      {/* Keyed by clause, so it opens with that clause's tags from the first frame. */}
+      <TagsDialog
+        key={editTags?.clauseId ?? "closed"}
+        open={editTags !== null}
+        title="Edit clause tags"
+        initialTags={editTags?.tags}
+        suggestions={documentTags}
+        onConfirm={handleEditTagsConfirm}
+        onCancel={() => setEditTags(null)}
       />
 
       <OptionPickerDialog

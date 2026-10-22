@@ -4,6 +4,8 @@ interface TagsDialogProps {
   open: boolean;
   title: string;
   initialTags?: string[];
+  // Tags used elsewhere in the document, offered for one-click reuse.
+  suggestions?: string[];
   onConfirm: (tags: string[]) => void;
   onCancel: () => void;
 }
@@ -12,6 +14,7 @@ export const TagsDialog = ({
   open,
   title,
   initialTags = [],
+  suggestions = [],
   onConfirm,
   onCancel,
 }: TagsDialogProps) => {
@@ -156,6 +159,33 @@ export const TagsDialog = ({
             }}
           />
         </div>
+
+        {suggestions.some((s) => !tags.includes(s)) && (
+          <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "#64748b" }}>Used in this document:</span>
+            {suggestions
+              .filter((s) => !tags.includes(s))
+              .map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setTags((prev) => (prev.includes(s) ? prev : [...prev, s]))}
+                  title={`Add ${s}`}
+                  style={{
+                    border: "1px dashed #a5b4fc",
+                    background: "#fff",
+                    color: "#3730a3",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  + {s}
+                </button>
+              ))}
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
           <button

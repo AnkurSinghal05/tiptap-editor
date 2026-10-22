@@ -18,6 +18,9 @@ interface ClauseOptions {
   // by a save). A backend id from elsewhere (pasted from another scope or tab)
   // is treated as a new clause and gets a temp id.
   isKnownId: ((id: string) => boolean) | null;
+  // Opens the tags editor for the clause with this id (the "Edit tags"
+  // button in each clause).
+  onEditTags: ((clauseId: string) => void) | null;
 }
 
 const CONTAINERS = new Set(["doc", "section", "subSection", "workflow"]);
@@ -38,7 +41,7 @@ export const Clause = Node.create<ClauseOptions>({
   name: "clause",
 
   addOptions() {
-    return { resolveTempId: null, isKnownId: null };
+    return { resolveTempId: null, isKnownId: null, onEditTags: null };
   },
 
   content: "block+",
@@ -137,6 +140,7 @@ export const Clause = Node.create<ClauseOptions>({
   },
 
   addNodeView() {
+    const options = this.options;
     return ({ node, getPos, editor }) => {
       const dom = document.createElement("div");
       dom.classList.add("clause-node");
@@ -170,19 +174,53 @@ export const Clause = Node.create<ClauseOptions>({
       contentDOM.className = "clause-content";
       dom.appendChild(contentDOM);
 
+      // Tags as chips, with a button that opens the tags editor. Not part of
+      // the clause's content, and hidden while the editor is read-only (CSS).
+      const tagsBar = document.createElement("div");
+      tagsBar.className = "clause-tags";
+      tagsBar.setAttribute("contenteditable", "false");
+      const renderTags = (tags: string[]) => {
+        const chips = tags.map((tag) => {
+          const chip = document.createElement("span");
+          chip.className = "clause-tags__tag";
+          chip.textContent = tag;
+          return chip;
+        });
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "clause-tags__edit";
+        edit.textContent = tags.length > 0 ? "Edit tags" : "+ Add tags";
+        edit.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          const pos = typeof getPos === "function" ? getPos() : null;
+          const id = pos == null ? null : editor.state.doc.nodeAt(pos)?.attrs.id;
+          if (id && editor.isEditable) options.onEditTags?.(String(id));
+        });
+        tagsBar.classList.toggle("clause-tags--empty", tags.length === 0);
+        tagsBar.replaceChildren(...chips, edit);
+      };
+      renderTags(node.attrs.tags ?? []);
+      dom.appendChild(tagsBar);
+
       return {
         dom,
         contentDOM,
         update(updated) {
           if (updated.type.name !== "clause") return false;
-          // Keep data-tags in sync when the tags attr changes.
-          dom.setAttribute("data-tags", JSON.stringify(updated.attrs.tags ?? []));
+          // Keep data-tags and the tag chips in sync when the tags attr changes.
+          const tags = JSON.stringify(updated.attrs.tags ?? []);
+          if (dom.getAttribute("data-tags") !== tags) renderTags(updated.attrs.tags ?? []);
+          dom.setAttribute("data-tags", tags);
           dom.classList.toggle("clause-node--temp", isTempClauseId(updated.attrs.id));
           if (updated.attrs.id) {
             dom.setAttribute("data-clause-id", String(updated.attrs.id));
           }
           return true;
         },
+        // The tags bar is the node view's own UI: ProseMirror leaves its
+        // events and DOM changes alone.
+        stopEvent: (event) => tagsBar.contains(event.target as HTMLElement | null),
+        ignoreMutation: (mutation) => tagsBar.contains(mutation.target),
       };
     };
   },

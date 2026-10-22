@@ -561,15 +561,46 @@ body {
   text-transform: uppercase;
 }
 
-.editor-surface .clause-node[data-tags]:not([data-tags="[]"])::after {
-  content: "tags: " attr(data-tags);
-  display: block;
-  font-size: 10px;
-  color: #4f46e5;
+/* Tags under each clause, with the button that edits them */
+.editor-surface .clause-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid #e2e8f0;
+  user-select: none;
+}
+
+.editor-surface .clause-tags__tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.editor-surface .clause-tags__edit {
+  padding: 1px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-surface .clause-tags__edit:hover {
+  background: #eef2ff;
+}
+
+/* Read-only (loading, saving, nothing loaded): nothing to edit. */
+.editor-surface .ProseMirror[contenteditable="false"] .clause-tags__edit,
+.editor-surface .ProseMirror[contenteditable="false"] .clause-tags--empty {
+  display: none;
 }
 
 /* Scope lock: ancestors of the loaded scope are context only. */
