@@ -1,4 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/kb-api/:path*", "destination": "/api/kb-proxy?path=:path*" }]
+  "rewrites": [
+    {
+      "source": "/kb-api/:path*",
+      "destination": "/api/kb-proxy?path=:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        }
+      ]
+    }
+  ]
 }

@@ -75,4 +75,6 @@ Set it up in this order:
    Don't add `VITE_KB_TOKEN` or `VITE_KB_API_DEV_PROXY`; they're for local development only.
 4. **Redeploy.** Vite builds the `VITE_*` values into the app, so changes apply only to new deployments.
 
+Search engines are kept out even when the deployment is public: `public/robots.txt` disallows crawling, and every response carries `X-Robots-Tag: noindex` (`vercel.json`) plus a `noindex` meta tag. These are requests crawlers honour, not access control.
+
 Things to know: every edit through the deployment is recorded under the token's user (`changed_by`), whoever made it, and a session token that expires has to be replaced (update the Secret, then redeploy). A long-lived service token from the backend team avoids both.
