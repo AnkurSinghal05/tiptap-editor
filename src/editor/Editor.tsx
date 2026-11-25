@@ -811,7 +811,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({ active, onChangeV
         entityId={opened?.entityId ?? null}
         entityName={opened?.title ?? null}
         creating={creating}
-        canCreate={IS_BASE_PROJECT}
         loading={busy}
         subSectionsRefresh={subSectionsRefresh}
         onLoad={(next) => void loadScope(next)}

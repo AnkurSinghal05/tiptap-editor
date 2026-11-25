@@ -28,8 +28,6 @@ interface ScopeBarProps {
   entityName: string | null;
   // A new document that isn't saved yet is open.
   creating: boolean;
-  // Only THRIWE_APP can create documents.
-  canCreate: boolean;
   loading: boolean;
   subSectionsRefresh: SubSectionsRefresh;
   onLoad: (scope: Scope) => void;
@@ -68,7 +66,6 @@ export const ScopeBar = ({
   entityId,
   entityName,
   creating,
-  canCreate,
   loading,
   subSectionsRefresh,
   onLoad,
@@ -154,14 +151,10 @@ export const ScopeBar = ({
         <span className="scope-bar__hint">New document: Create document saves it.</span>
       ) : hasDocument === false ? (
         <>
-          <span className="scope-bar__hint">
-            No {labelOf(DOC_TYPES, docType)} document yet{canCreate ? "." : ". Only Thriwe (THRIWE_APP) can create one."}
-          </span>
-          {canCreate && (
-            <button type="button" className="scope-bar__load" onClick={start} disabled={loading}>
-              Start document
-            </button>
-          )}
+          <span className="scope-bar__hint">No {labelOf(DOC_TYPES, docType)} document yet.</span>
+          <button type="button" className="scope-bar__load" onClick={start} disabled={loading}>
+            Start document
+          </button>
         </>
       ) : (
         <>

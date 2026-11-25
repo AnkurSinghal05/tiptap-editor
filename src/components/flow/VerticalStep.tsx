@@ -125,9 +125,9 @@ export const VerticalStep = ({
     () => (pasting && value ? checkJson(json, { docType, entityId: value, title: name }) : null),
     [pasting, json, docType, value, name, checkJson],
   );
-  // An existing document opens; a missing one can be started by THRIWE_APP only.
+  // An existing document opens; a missing one can be started (by any project:
+  // if the API refuses, Create document shows its error).
   const canStart =
-    IS_BASE_PROJECT &&
     (start === "blank" || (start === "json" && jsonCheck?.ok === true) || (start === "file" && file.state === "ready"));
   const canOpen = document !== undefined && (document !== null || canStart);
 
@@ -271,12 +271,13 @@ export const VerticalStep = ({
 
       {document === null && !IS_BASE_PROJECT && (
         <div className="flow-callout flow-callout--info">
-          {PROJECT_LABEL} has no {typeName} document for {name}. Either Thriwe hasn't created the base document yet, or{" "}
-          {name} isn't mapped to this project. Only Thriwe (THRIWE_APP) can create documents.
+          {PROJECT_LABEL} sees no {typeName} document for {name}: Thriwe may not have created the base document yet, or{" "}
+          {name} may not be mapped to this project. You can still start one below; if the API doesn't allow this project
+          to create it, Create document shows the API's error.
         </div>
       )}
 
-      {document === null && IS_BASE_PROJECT && (
+      {document === null && (
         <div className="flow-start">
           <p>
             {name} has no {typeName} document yet. How do you want to start?

@@ -65,7 +65,7 @@ Compared with our previous review, these are new or now described in detail.
 | Response wrapper `{ message, code, data }`; 400 errors carry field paths | The HTTP client reads the wrapper; validation errors are pinned to the clause they point at |
 | Base deletes are final for every program, including programs' own versions of the clause | Save asks for confirmation before deleting clauses |
 | Some writes can fail while others succeed | Saved changes are kept; failed clauses stay unsaved and are highlighted with the reason |
-| Every request needs `Project-Code` | A project switch in the header: `THRIWE_APP` (base) or `ENBD_V3` (ENBD's own version). Programs can't create documents, and their removals apply to them only |
+| Every request needs `Project-Code` | A project switch in the header: `THRIWE_APP` (base) or `ENBD_V3` (ENBD's own version). Any project can start a document (the API decides whether it may create it), and a program's removals apply to it only |
 
 ## Open questions for the backend
 
@@ -98,7 +98,7 @@ Compared with our previous review, these are new or now described in detail.
 
 ## Program views
 
-Started Oct 22, 2026: the header's project switch sends `THRIWE_APP` or `ENBD_V3`, programs can't start documents, and the delete warning says a program's removals apply to it only. Revert, History, customised-clause markers and mapping screens aren't built yet. This is what each part needs.
+Started Oct 22, 2026: the header's project switch sends `THRIWE_APP` or `ENBD_V3`, programs can start documents too (the API decides; per the handover it answers 403), and the delete warning says a program's removals apply to it only. Revert, History, customised-clause markers and mapping screens aren't built yet. This is what each part needs.
 
 **Seeing a program's content:**
 - A way to pick the program. There's no endpoint that lists programs, so codes have to be typed in or come from configuration.
